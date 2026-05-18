@@ -1,0 +1,1241 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DistribuiMax S.A.</title>
+<style>
+/* ── RESET & BASE ─────────────────────────────────────── */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', sans-serif; background: #f1f3f4; color: #202124; }
+
+/* ── HEADER ───────────────────────────────────────────── */
+header {
+  background: #1a73e8; color: #fff;
+  height: 52px; padding: 0 24px;
+  display: flex; align-items: center; gap: 12px;
+  position: sticky; top: 0; z-index: 50;
+}
+header h1 { font-size: 1rem; font-weight: 600; }
+header span { font-size: .8rem; opacity: .8; }
+#db-badge {
+  margin-left: auto; font-size: .72rem; font-weight: 600;
+  padding: 3px 10px; border-radius: 99px;
+  background: rgba(255,255,255,.25);
+}
+#db-badge.ok  { background: rgba(52,168,83,.55); }
+#db-badge.err { background: rgba(234,67,53,.55); }
+
+/* ── LAYOUT ───────────────────────────────────────────── */
+.layout { display: flex; min-height: calc(100vh - 52px); }
+
+/* ── NAV ──────────────────────────────────────────────── */
+nav {
+  width: 185px; background: #fff; flex-shrink: 0;
+  border-right: 1px solid #dadce0; padding: 10px 0;
+}
+nav button {
+  display: block; width: 100%; text-align: left;
+  padding: 10px 18px; border: none; background: none;
+  cursor: pointer; font-size: .88rem; color: #5f6368;
+  border-left: 3px solid transparent; transition: .12s;
+}
+nav button:hover  { background: #f1f3f4; color: #202124; }
+nav button.on     { color: #1a73e8; border-left-color: #1a73e8;
+                    background: #e8f0fe; font-weight: 600; }
+
+/* ── MAIN ─────────────────────────────────────────────── */
+main { flex: 1; padding: 20px; overflow-x: auto; }
+.sec { display: none; }
+.sec.on { display: block; }
+
+/* ── CARD ─────────────────────────────────────────────── */
+.card {
+  background: #fff; border: 1px solid #dadce0;
+  border-radius: 8px; padding: 18px; margin-bottom: 16px;
+}
+.card h2 {
+  font-size: .92rem; font-weight: 600;
+  padding-bottom: 10px; margin-bottom: 14px;
+  border-bottom: 1px solid #dadce0;
+}
+
+/* ── TOOLBAR ──────────────────────────────────────────── */
+.bar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+.bar input, .bar select {
+  padding: 7px 10px; border: 1px solid #dadce0;
+  border-radius: 6px; font-size: .86rem; outline: none;
+  color: #202124; background: #fff;
+}
+.bar input { flex: 1; min-width: 160px; }
+.bar input:focus, .bar select:focus { border-color: #1a73e8; }
+
+/* ── BUTTONS ──────────────────────────────────────────── */
+.btn {
+  padding: 7px 14px; border-radius: 6px; cursor: pointer;
+  font-size: .82rem; font-weight: 500; border: 1px solid #dadce0;
+  background: #fff; color: #202124; transition: opacity .12s;
+}
+.btn:hover { opacity: .82; }
+.bp { background: #1a73e8; color: #fff; border-color: #1a73e8; }
+.br { background: #ea4335; color: #fff; border-color: #ea4335; }
+.bs { padding: 3px 8px; font-size: .76rem; }
+
+/* ── TABLE ────────────────────────────────────────────── */
+.tbl-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: .84rem; white-space: nowrap; }
+th { background: #f8f9fa; padding: 8px 10px; text-align: left;
+     font-size: .73rem; font-weight: 600; color: #5f6368; text-transform: uppercase; }
+td { padding: 8px 10px; border-bottom: 1px solid #f1f3f4; }
+tr:hover td { background: #fafafa; }
+.empty { padding: 28px; text-align: center; color: #5f6368; }
+
+/* ── BADGES ───────────────────────────────────────────── */
+.badge { display: inline-block; padding: 2px 8px; border-radius: 99px;
+         font-size: .71rem; font-weight: 600; }
+.g  { background: #e6f4ea; color: #137333; }
+.b  { background: #e8f0fe; color: #1a73e8; }
+.y  { background: #fef7e0; color: #b06000; }
+.r  { background: #fce8e6; color: #c5221f; }
+.gr { background: #f1f3f4; color: #5f6368; }
+.p  { background: #f3e8fd; color: #7b1fa2; }
+
+/* ── NOTE ─────────────────────────────────────────────── */
+.note {
+  font-size: .79rem; padding: 8px 12px; margin-bottom: 10px;
+  background: #eff6ff; color: #1d4ed8;
+  border-left: 3px solid #1a73e8; border-radius: 0 6px 6px 0;
+}
+
+/* ── MODAL ────────────────────────────────────────────── */
+.overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.45); z-index: 200;
+  align-items: center; justify-content: center;
+}
+.overlay.on { display: flex; }
+.modal {
+  background: #fff; border-radius: 10px;
+  padding: 24px; width: 520px; max-width: 96vw;
+  max-height: 92vh; overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0,0,0,.18);
+}
+.modal h3 { font-size: .92rem; font-weight: 600; margin-bottom: 16px; }
+.mfooter { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+
+/* ── FORM ─────────────────────────────────────────────── */
+.fg { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.fg label { font-size: .76rem; font-weight: 500; color: #5f6368; }
+.fg input, .fg select, .fg textarea {
+  padding: 7px 9px; border: 1px solid #dadce0;
+  border-radius: 6px; font-size: .86rem; outline: none;
+  color: #202124; background: #fff;
+}
+.fg input:focus, .fg select:focus { border-color: #1a73e8; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+.full  { grid-column: 1 / -1; }
+.checks { display: flex; gap: 18px; padding: 6px 0; }
+.checks label { display: flex; gap: 6px; align-items: center;
+                font-size: .86rem; cursor: pointer; }
+
+/* ── TOAST ────────────────────────────────────────────── */
+#toast {
+  position: fixed; bottom: 22px; right: 22px;
+  background: #323232; color: #fff;
+  padding: 10px 18px; border-radius: 6px; font-size: .86rem;
+  opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 300;
+}
+#toast.on { opacity: 1; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <h1>DistribuiMax S.A.</h1>
+  <span>Sistema de Gestão</span>
+  <div id="db-badge">⏳ verificando banco…</div>
+</header>
+
+<div class="layout">
+
+  <!-- NAV -->
+  <nav>
+    <button class="on" onclick="ir('empresas',this)">🏢 Empresas</button>
+    <button onclick="ir('produtos',this)">📦 Produtos</button>
+    <button onclick="ir('pedidos',this)">🧾 Pedidos</button>
+    <button onclick="ir('notas',this)">📄 Notas Fiscais</button>
+    <button onclick="ir('funcionarios',this)">👷 Funcionários</button>
+    <button onclick="ir('estoque',this)">🏪 Estoque</button>
+    <button onclick="ir('movimentacoes',this)">🔄 Movimentações</button>
+    <button onclick="ir('entregas',this)">🚚 Entregas</button>
+    <button onclick="ir('veiculos',this)">🚛 Veículos</button>
+    <button onclick="ir('fornecimentos',this)">🤝 Fornecimentos</button>
+    <button onclick="ir('filiais',this)">🏭 Filiais</button>
+    <button onclick="ir('categorias',this)">🏷️ Categorias</button>
+  </nav>
+
+  <main>
+
+    <!-- ═══ EMPRESAS ═══════════════════════════════════════ -->
+    <div id="sec-empresas" class="sec on">
+      <div class="card">
+        <h2>Empresas — Clientes / Fornecedores</h2>
+        <p class="note">Uma empresa pode ser <strong>cliente</strong>, <strong>fornecedora</strong> ou <strong>ambas</strong> ao mesmo tempo.</p>
+        <div class="bar">
+          <input id="q-emp" placeholder="Buscar nome ou CNPJ…" oninput="filtrar('t-emp',this.value)">
+          <select onchange="carregarEmpresas(this.value)">
+            <option value="todos">Todas</option>
+            <option value="cliente">Só Clientes</option>
+            <option value="fornecedor">Só Fornecedores</option>
+          </select>
+          <button class="btn bp" onclick="abrirEmp()">+ Nova</button>
+        </div>
+        <div class="tbl-wrap"><div id="t-emp"></div></div>
+      </div>
+    </div>
+
+    <!-- ═══ PRODUTOS ════════════════════════════════════════ -->
+    <div id="sec-produtos" class="sec">
+      <div class="card">
+        <h2>Produtos</h2>
+        <div class="bar">
+          <input id="q-prod" placeholder="Buscar descrição ou SKU…" oninput="filtrar('t-prod',this.value)">
+          <button class="btn bp" onclick="abrirProd()">+ Novo</button>
+        </div>
+        <div class="tbl-wrap"><div id="t-prod"></div></div>
+      </div>
+    </div>
+
+    <!-- ═══ PEDIDOS ══════════════════════════════════════════ -->
+    <div id="sec-pedidos" class="sec">
+      <div class="card">
+        <h2>Pedidos</h2>
+        <div class="bar">
+          <input id="q-ped" placeholder="Buscar cliente ou status…" oninput="filtrar('t-ped',this.value)">
+          <button class="btn bp" onclick="abrirPed()">+ Novo</button>
+        </div>
+        <div class="tbl-wrap"><div id="t-ped"></div></div>
+      </div>
+    </div>
+
+    <!-- ═══ NOTAS FISCAIS ════════════════════════════════════ -->
+    <div id="sec-notas" class="sec">
+      <div class="card">
+        <h2>Notas Fiscais</h2>
+        <p class="note">Um pedido pode gerar <strong>várias notas</strong> — recebimento parcial ou produtos faltantes.</p>
+        <div class="bar">
+          <input id="q-nf" placeholder="Buscar número ou cliente…" oninput="filtrar('t-nf',this.value)">
+          <button class="btn bp" onclick="abrirNF()">+ Nova NF</button>
+        </div>
+        <div class="tbl-wrap"><div id="t-nf"></div></div>
+      </div>
+    </div>
+
+    <!-- ═══ FUNCIONÁRIOS ════════════════════════════════════ -->
+    <div id="sec-funcionarios" class="sec">
+      <div class="card">
+        <h2>Funcionários</h2>
+        <div class="bar">
+          <input id="q-func" placeholder="Buscar nome ou cargo…" oninput="filtrar('t-func',this.value)">
+          <button class="btn bp" onclick="abrirFunc()">+ Novo</button>
+        </div>
+        <div class="tbl-wrap"><div id="t-func"></div></div>
+      </div>
+    </div>
+
+    <!-- ═══ ESTOQUE ══════════════════════════════════════════ -->
+    <div id="sec-estoque" class="sec">
+      <div class="card">
+        <h2>Estoque por Filial</h2>
+        <div class="bar">
+          <input id="q-est" placeholder="Buscar produto ou filial…" oninput="filtrar('t-est',this.value)">
+        </div>
+        <div class="tbl-wrap"><div id="t-est"></div></div>
+      </div>
+    </div>
+
+    <!-- ═══ MOVIMENTAÇÕES ═══════════════════════════════════════ -->
+    <div id="sec-movimentacoes" class="sec">
+      <div class="card">
+        <h2>Movimentações de Estoque</h2>
+        <p class="note">Registre <strong>entradas</strong>, <strong>saídas</strong> ou <strong>ajustes</strong> — o estoque é atualizado automaticamente pelo trigger.</p>
+        <div class="bar">
+          <input id="q-mov" placeholder="Buscar produto, filial ou tipo…" oninput="filtrar('t-mov',this.value)">
+          <button class="btn bp" onclick="abrirMov()">+ Nova</button>
+        </div>
+        <div class="tbl-wrap"><div id="t-mov"></div></div>
+      </div>
+    </div>
+
+    <!-- ═══ ENTREGAS ════════════════════════════════════════════ -->
+    <div id="sec-entregas" class="sec">
+      <div class="card">
+        <h2>Entregas</h2>
+        <div class="bar">
+          <input id="q-ent" placeholder="Buscar motorista ou status…" oninput="filtrar('t-ent',this.value)">
+          <button class="btn bp" onclick="abrirEnt()">+ Nova</button>
+        </div>
+        <div class="tbl-wrap"><div id="t-ent"></div></div>
+      </div>
+    </div>
+
+    <!-- ═══ VEÍCULOS ════════════════════════════════════════════ -->
+    <div id="sec-veiculos" class="sec">
+      <div class="card">
+        <h2>Veículos</h2>
+        <div class="bar">
+          <input id="q-vei" placeholder="Buscar placa ou modelo…" oninput="filtrar('t-vei',this.value)">
+          <button class="btn bp" onclick="abrirVei()">+ Novo</button>
+        </div>
+        <div class="tbl-wrap"><div id="t-vei"></div></div>
+      </div>
+    </div>
+
+    <!-- ═══ FORNECIMENTOS ═══════════════════════════════════════ -->
+    <div id="sec-fornecimentos" class="sec">
+      <div class="card">
+        <h2>Fornecimentos</h2>
+        <div class="bar">
+          <input id="q-forn" placeholder="Buscar fornecedor ou produto…" oninput="filtrar('t-forn',this.value)">
+          <button class="btn bp" onclick="abrirFornec()">+ Novo</button>
+        </div>
+        <div class="tbl-wrap"><div id="t-forn"></div></div>
+      </div>
+    </div>
+
+    <!-- ═══ FILIAIS ══════════════════════════════════════════════ -->
+    <div id="sec-filiais" class="sec">
+      <div class="card">
+        <h2>Filiais</h2>
+        <div class="bar">
+          <input id="q-fil" placeholder="Buscar nome ou cidade…" oninput="filtrar('t-fil',this.value)">
+          <button class="btn bp" onclick="abrirFil()">+ Nova</button>
+        </div>
+        <div class="tbl-wrap"><div id="t-fil"></div></div>
+      </div>
+    </div>
+
+    <!-- ═══ CATEGORIAS ═══════════════════════════════════════════ -->
+    <div id="sec-categorias" class="sec">
+      <div class="card">
+        <h2>Categorias</h2>
+        <div class="bar">
+          <input id="q-cat" placeholder="Buscar categoria…" oninput="filtrar('t-cat',this.value)">
+          <button class="btn bp" onclick="abrirCat()">+ Nova</button>
+        </div>
+        <div class="tbl-wrap"><div id="t-cat"></div></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ═══ MODAL EMPRESA ══════════════════════════════════════════ -->
+<div id="m-emp" class="overlay">
+  <div class="modal">
+    <h3 id="m-emp-titulo">Nova Empresa</h3>
+    <input type="hidden" id="e-id">
+    <div class="grid2">
+      <div class="fg full"><label>Razão Social *</label><input id="e-razao"></div>
+      <div class="fg"><label>CNPJ *</label><input id="e-cnpj" maxlength="14"></div>
+      <div class="fg"><label>Telefone</label><input id="e-tel"></div>
+      <div class="fg full"><label>E-mail</label><input id="e-email" type="email"></div>
+      <div class="fg full"><label>Contato Responsável</label><input id="e-contato"></div>
+      <div class="fg full">
+        <label>Papel *</label>
+        <div class="checks">
+          <label><input type="checkbox" id="e-cli"> Cliente</label>
+          <label><input type="checkbox" id="e-forn"> Fornecedor</label>
+        </div>
+      </div>
+      <div class="fg"><label>Limite de Crédito (R$)</label><input id="e-limite" type="number" step="0.01"></div>
+      <div class="fg"><label>CEP *</label><input id="e-cep" maxlength="8"></div>
+      <div class="fg full"><label>Logradouro *</label><input id="e-logradouro"></div>
+      <div class="fg"><label>Bairro *</label><input id="e-bairro"></div>
+      <div class="fg"><label>Cidade *</label><input id="e-cidade"></div>
+      <div class="fg"><label>Estado *</label><input id="e-estado" maxlength="2"></div>
+    </div>
+    <div class="mfooter">
+      <button class="btn" onclick="fechar('m-emp')">Cancelar</button>
+      <button class="btn bp" onclick="salvarEmp()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL PRODUTO ══════════════════════════════════════════ -->
+<div id="m-prod" class="overlay">
+  <div class="modal">
+    <h3 id="m-prod-titulo">Novo Produto</h3>
+    <input type="hidden" id="p-id">
+    <div class="grid2">
+      <div class="fg full"><label>Descrição *</label><input id="p-desc"></div>
+      <div class="fg"><label>SKU *</label><input id="p-sku"></div>
+      <div class="fg"><label>Unidade</label>
+        <select id="p-unid"><option>UND</option><option>PCT</option><option>CX</option><option>KG</option><option>LT</option></select>
+      </div>
+      <div class="fg full"><label>Categoria *</label><select id="p-cat"></select></div>
+      <div class="fg"><label>Preço Custo (R$) *</label><input id="p-custo" type="number" step="0.01"></div>
+      <div class="fg"><label>Preço Venda (R$) *</label><input id="p-venda" type="number" step="0.01"></div>
+      <div class="fg"><label>Peso (kg)</label><input id="p-peso" type="number" step="0.001"></div>
+    </div>
+    <div class="mfooter">
+      <button class="btn" onclick="fechar('m-prod')">Cancelar</button>
+      <button class="btn bp" onclick="salvarProd()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL PEDIDO ═══════════════════════════════════════════ -->
+<div id="m-ped" class="overlay">
+  <div class="modal">
+    <h3 id="m-ped-titulo">Novo Pedido</h3>
+    <input type="hidden" id="ped-id">
+    <div class="fg"><label>Cliente *</label><select id="ped-cli"></select></div>
+    <div class="fg"><label>Filial *</label><select id="ped-fil"></select></div>
+    <div class="grid2">
+      <div class="fg"><label>Status</label>
+        <select id="ped-status">
+          <option>AGUARDANDO</option><option>APROVADO</option>
+          <option>CANCELADO</option><option>ENTREGUE</option>
+        </select>
+      </div>
+      <div class="fg"><label>Previsão de Entrega</label><input id="ped-prev" type="date"></div>
+    </div>
+    <div class="fg"><label>Observação</label><textarea id="ped-obs" rows="2" style="resize:vertical"></textarea></div>
+    <div class="mfooter">
+      <button class="btn" onclick="fechar('m-ped')">Cancelar</button>
+      <button class="btn bp" onclick="salvarPed()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL NOTA FISCAL ══════════════════════════════════════ -->
+<div id="m-nf" class="overlay">
+  <div class="modal">
+    <h3>Nova Nota Fiscal</h3>
+    <div class="fg"><label>Pedido *</label><select id="nf-ped"></select></div>
+    <div class="grid2">
+      <div class="fg"><label>Número da NF *</label><input id="nf-num" placeholder="NF-2026-00004"></div>
+      <div class="fg"><label>Série</label><input id="nf-serie" value="001" maxlength="3"></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin:10px 0 6px">
+      <label style="font-size:.78rem;font-weight:600;color:#5f6368">PRODUTOS DESTA NOTA</label>
+      <button class="btn bs" onclick="addItemNF()">+ Produto</button>
+    </div>
+    <div id="nf-itens"></div>
+    <div class="mfooter">
+      <button class="btn" onclick="fechar('m-nf')">Cancelar</button>
+      <button class="btn bp" onclick="salvarNF()">Emitir NF</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL FUNCIONÁRIO ══════════════════════════════════════ -->
+<div id="m-func" class="overlay">
+  <div class="modal">
+    <h3 id="m-func-titulo">Novo Funcionário</h3>
+    <input type="hidden" id="f-id">
+    <div class="grid2">
+      <div class="fg full"><label>Nome *</label><input id="f-nome"></div>
+      <div class="fg"><label>CPF *</label><input id="f-cpf" maxlength="11"></div>
+      <div class="fg"><label>Cargo *</label><input id="f-cargo"></div>
+      <div class="fg"><label>Salário (R$) *</label><input id="f-sal" type="number" step="0.01"></div>
+      <div class="fg"><label>Admissão *</label><input id="f-adm" type="date"></div>
+      <div class="fg"><label>Filial *</label><select id="f-fil"></select></div>
+    </div>
+    <div class="mfooter">
+      <button class="btn" onclick="fechar('m-func')">Cancelar</button>
+      <button class="btn bp" onclick="salvarFunc()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══ MODAL MOVIMENTAÇÃO ═════════════════════════════════════ -->
+<div id="m-mov" class="overlay">
+  <div class="modal">
+    <h3>Nova Movimentação</h3>
+    <div class="fg"><label>Produto *</label><select id="mov-prod"></select></div>
+    <div class="fg"><label>Filial *</label><select id="mov-fil"></select></div>
+    <div class="fg"><label>Funcionário *</label><select id="mov-func"></select></div>
+    <div class="fg"><label>Tipo *</label>
+      <select id="mov-tipo"><option>ENTRADA</option><option>SAIDA</option><option>AJUSTE</option></select>
+    </div>
+    <div class="fg"><label>Quantidade *</label><input id="mov-qtd" type="number" min="1"></div>
+    <div class="fg"><label>Motivo</label><input id="mov-motivo"></div>
+    <div class="mfooter">
+      <button class="btn" onclick="fechar('m-mov')">Cancelar</button>
+      <button class="btn bp" onclick="salvarMov()">Registrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL ENTREGA ══════════════════════════════════════════ -->
+<div id="m-ent" class="overlay">
+  <div class="modal">
+    <h3 id="m-ent-titulo">Nova Entrega</h3>
+    <input type="hidden" id="ent-id">
+    <div class="fg"><label>Pedido *</label><select id="ent-ped"></select></div>
+    <div class="fg"><label>Motorista *</label><select id="ent-func"></select></div>
+    <div class="fg"><label>Veículo *</label><select id="ent-vei"></select></div>
+    <div class="fg"><label>Data de Saída *</label><input id="ent-saida" type="datetime-local"></div>
+    <div class="fg"><label>Data de Chegada</label><input id="ent-chegada" type="datetime-local"></div>
+    <div class="fg"><label>Status</label>
+      <select id="ent-status"><option>PENDENTE</option><option>EM_ROTA</option><option>ENTREGUE</option><option>FALHA</option></select>
+    </div>
+    <div class="fg"><label>Observação</label><input id="ent-obs"></div>
+    <div class="mfooter">
+      <button class="btn" onclick="fechar('m-ent')">Cancelar</button>
+      <button class="btn bp" onclick="salvarEnt()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL VEÍCULO ══════════════════════════════════════════ -->
+<div id="m-vei" class="overlay">
+  <div class="modal">
+    <h3 id="m-vei-titulo">Novo Veículo</h3>
+    <input type="hidden" id="v-id">
+    <div class="grid2">
+      <div class="fg full"><label>Placa *</label><input id="v-placa" maxlength="8"></div>
+      <div class="fg full"><label>Modelo *</label><input id="v-modelo"></div>
+      <div class="fg"><label>Marca</label><input id="v-marca"></div>
+      <div class="fg"><label>Ano</label><input id="v-ano" type="number"></div>
+      <div class="fg"><label>Capacidade (kg)</label><input id="v-cap" type="number" step="0.01"></div>
+      <div class="fg"><label>Filial *</label><select id="v-fil"></select></div>
+    </div>
+    <div class="mfooter">
+      <button class="btn" onclick="fechar('m-vei')">Cancelar</button>
+      <button class="btn bp" onclick="salvarVei()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL FORNECIMENTO ═════════════════════════════════════ -->
+<div id="m-fornec" class="overlay">
+  <div class="modal">
+    <h3>Novo Fornecimento</h3>
+    <div class="fg"><label>Fornecedor *</label><select id="fn-emp"></select></div>
+    <div class="fg"><label>Produto *</label><select id="fn-prod"></select></div>
+    <div class="fg"><label>Preço Negociado (R$) *</label><input id="fn-preco" type="number" step="0.01"></div>
+    <div class="fg"><label>Prazo de Entrega (dias)</label><input id="fn-prazo" type="number"></div>
+    <div class="fg"><label>Última Entrega</label><input id="fn-ultima" type="date"></div>
+    <div class="mfooter">
+      <button class="btn" onclick="fechar('m-fornec')">Cancelar</button>
+      <button class="btn bp" onclick="salvarFornec()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL FILIAL ═══════════════════════════════════════════ -->
+<div id="m-fil" class="overlay">
+  <div class="modal">
+    <h3 id="m-fil-titulo">Nova Filial</h3>
+    <input type="hidden" id="fl-id">
+    <div class="grid2">
+      <div class="fg full"><label>Nome *</label><input id="fl-nome"></div>
+      <div class="fg"><label>CNPJ *</label><input id="fl-cnpj" maxlength="14"></div>
+      <div class="fg"><label>Telefone</label><input id="fl-tel"></div>
+      <div class="fg"><label>Inauguração *</label><input id="fl-inau" type="date"></div>
+      <div class="fg full"><label>Logradouro *</label><input id="fl-logradouro"></div>
+      <div class="fg"><label>Bairro *</label><input id="fl-bairro"></div>
+      <div class="fg"><label>CEP *</label><input id="fl-cep" maxlength="8"></div>
+      <div class="fg"><label>Cidade *</label><input id="fl-cidade"></div>
+      <div class="fg"><label>Estado *</label><input id="fl-estado" maxlength="2"></div>
+    </div>
+    <div class="mfooter">
+      <button class="btn" onclick="fechar('m-fil')">Cancelar</button>
+      <button class="btn bp" onclick="salvarFil()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL CATEGORIA ════════════════════════════════════════ -->
+<div id="m-cat" class="overlay">
+  <div class="modal">
+    <h3 id="m-cat-titulo">Nova Categoria</h3>
+    <input type="hidden" id="ct-id">
+    <div class="fg"><label>Nome *</label><input id="ct-nome"></div>
+    <div class="fg"><label>Descrição</label><input id="ct-desc"></div>
+    <div class="mfooter">
+      <button class="btn" onclick="fechar('m-cat')">Cancelar</button>
+      <button class="btn bp" onclick="salvarCat()">Salvar</button>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<script>
+// ── Utilitários ──────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const api = (url, opts={}) =>
+  fetch(url, {headers:{'Content-Type':'application/json'}, ...opts}).then(r=>r.json());
+
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('on');
+  setTimeout(()=>t.classList.remove('on'), 2600);
+}
+function fechar(id) { $(id).classList.remove('on'); }
+function abrir(id)  { $(id).classList.add('on'); }
+
+// fecha modal ao clicar fora
+document.querySelectorAll('.overlay').forEach(el =>
+  el.addEventListener('click', e => { if(e.target===el) el.classList.remove('on'); })
+);
+
+// ── Navegação ────────────────────────────────────────────────
+const cargas = {
+  empresas: ()=>carregarEmpresas('todos'),
+  produtos: carregarProdutos,
+  pedidos:  carregarPedidos,
+  notas:    carregarNotas,
+  funcionarios: carregarFuncionarios,
+  estoque:       carregarEstoque,
+  movimentacoes: carregarMovimentacoes,
+  entregas:      carregarEntregas,
+  veiculos:      carregarVeiculos,
+  fornecimentos: carregarFornecimentos,
+  filiais:       carregarFiliaisCompleto,
+  categorias:    carregarCategorias,
+};
+function ir(sec, btn) {
+  document.querySelectorAll('.sec').forEach(s=>s.classList.remove('on'));
+  document.querySelectorAll('nav button').forEach(b=>b.classList.remove('on'));
+  $('sec-'+sec).classList.add('on');
+  btn.classList.add('on');
+  cargas[sec]();
+}
+
+// ── Filtro ───────────────────────────────────────────────────
+function filtrar(tblId, q) {
+  document.querySelectorAll('#'+tblId+' tbody tr').forEach(tr=>{
+    tr.style.display = tr.textContent.toLowerCase().includes(q.toLowerCase()) ? '' : 'none';
+  });
+}
+
+// ── Helpers de renderização ──────────────────────────────────
+const brl = n => n!=null ? 'R$ '+(+n).toLocaleString('pt-BR',{minimumFractionDigits:2}) : '-';
+const dt  = s => s ? new Date(s).toLocaleDateString('pt-BR') : '-';
+const statusCor = {AGUARDANDO:'y',APROVADO:'b',ENTREGUE:'g',CANCELADO:'r',PENDENTE:'y',EM_ROTA:'b',FALHA:'r'};
+
+function tabela(id, colunas, linhas) {
+  if (!linhas.length) { $(id).innerHTML='<div class="empty">Nenhum registro encontrado.</div>'; return; }
+  const th = colunas.map(c=>`<th>${c}</th>`).join('');
+  const trs = linhas.join('');
+  $(id).innerHTML = `<table><thead><tr>${th}</tr></thead><tbody>${trs}</tbody></table>`;
+}
+
+// ═════════════════════════════════════════════════════════════
+// EMPRESAS
+// ═════════════════════════════════════════════════════════════
+async function carregarEmpresas(tipo='todos') {
+  const lista = await api('/api/empresas?tipo='+tipo);
+  tabela('t-emp',
+    ['ID','Razão Social','CNPJ','Papel','Cidade/UF','Status','Ações'],
+    lista.map(e=>`<tr>
+      <td>${e.id_empresa}</td>
+      <td>${e.razao_social}</td>
+      <td>${e.cnpj}</td>
+      <td>
+        ${e.is_cliente    ? '<span class="badge b">Cliente</span> '    : ''}
+        ${e.is_fornecedor ? '<span class="badge p">Fornecedor</span>'  : ''}
+      </td>
+      <td>${e.cidade}/${e.estado}</td>
+      <td><span class="badge ${e.ativo?'g':'gr'}">${e.ativo?'Ativo':'Inativo'}</span></td>
+      <td>
+        <button class="btn bs bp" onclick="editarEmp(${e.id_empresa})">Editar</button>
+        <button class="btn bs br" onclick="deletarEmp(${e.id_empresa})">Excluir</button>
+      </td>
+    </tr>`)
+  );
+}
+
+function abrirEmp() {
+  $('e-id').value=''; $('m-emp-titulo').textContent='Nova Empresa';
+  ['e-razao','e-cnpj','e-tel','e-email','e-contato','e-limite',
+   'e-cep','e-logradouro','e-bairro','e-cidade','e-estado'].forEach(i=>$(i).value='');
+  $('e-cli').checked=false; $('e-forn').checked=false;
+  abrir('m-emp');
+}
+
+async function editarEmp(id) {
+  const e = await api('/api/empresas/'+id);
+  $('e-id').value=e.id_empresa; $('m-emp-titulo').textContent='Editar Empresa';
+  $('e-razao').value=e.razao_social; $('e-cnpj').value=e.cnpj;
+  $('e-tel').value=e.telefone||''; $('e-email').value=e.email||'';
+  $('e-contato').value=e.contato_responsavel||'';
+  $('e-cli').checked=!!e.is_cliente; $('e-forn').checked=!!e.is_fornecedor;
+  $('e-limite').value=e.limite_credito||'';
+  $('e-cep').value=e.cep; $('e-logradouro').value=e.logradouro;
+  $('e-bairro').value=e.bairro; $('e-cidade').value=e.cidade;
+  $('e-estado').value=e.estado;
+  abrir('m-emp');
+}
+
+async function salvarEmp() {
+  if (!$('e-cli').checked && !$('e-forn').checked)
+    return toast('⚠ Marque pelo menos: Cliente ou Fornecedor.');
+  const d = {
+    razao_social:e($('e-razao')), cnpj:e($('e-cnpj')),
+    telefone:e($('e-tel')), email:e($('e-email')),
+    contato_responsavel:e($('e-contato')),
+    is_cliente:$('e-cli').checked?1:0, is_fornecedor:$('e-forn').checked?1:0,
+    limite_credito:$('e-limite').value||0,
+    logradouro:e($('e-logradouro')), bairro:e($('e-bairro')),
+    cep:e($('e-cep')), cidade:e($('e-cidade')),
+    estado:$('e-estado').value.toUpperCase(), ativo:1,
+  };
+  if (!d.razao_social||!d.cnpj) return toast('⚠ Preencha os campos obrigatórios.');
+  const id = $('e-id').value;
+  await api(id?'/api/empresas/'+id:'/api/empresas',
+            {method:id?'PUT':'POST', body:JSON.stringify(d)});
+  fechar('m-emp'); carregarEmpresas('todos');
+  toast('✅ Empresa salva!');
+}
+
+async function deletarEmp(id) {
+  if (!confirm('Desativar esta empresa?')) return;
+  await api('/api/empresas/'+id, {method:'DELETE'});
+  carregarEmpresas('todos'); toast('✅ Empresa desativada.');
+}
+
+// ═════════════════════════════════════════════════════════════
+// PRODUTOS
+// ═════════════════════════════════════════════════════════════
+async function carregarProdutos() {
+  const lista = await api('/api/produtos');
+  tabela('t-prod',
+    ['SKU','Descrição','Categoria','Unid.','Custo','Venda','Status','Ações'],
+    lista.map(p=>`<tr>
+      <td>${p.codigo_sku}</td><td>${p.descricao}</td><td>${p.categoria}</td>
+      <td>${p.unidade_medida}</td><td>${brl(p.preco_custo)}</td><td>${brl(p.preco_venda)}</td>
+      <td><span class="badge ${p.ativo?'g':'gr'}">${p.ativo?'Ativo':'Inativo'}</span></td>
+      <td>
+        <button class="btn bs bp" onclick="editarProd(${p.id_produto})">Editar</button>
+        <button class="btn bs br" onclick="deletarProd(${p.id_produto})">Excluir</button>
+      </td>
+    </tr>`)
+  );
+}
+
+async function abrirProd() {
+  const cats = await api('/api/categorias');
+  $('p-cat').innerHTML = cats.map(c=>`<option value="${c.id_categoria}">${c.nome}</option>`).join('');
+  $('p-id').value=''; $('m-prod-titulo').textContent='Novo Produto';
+  ['p-desc','p-sku','p-custo','p-venda','p-peso'].forEach(i=>$(i).value='');
+  abrir('m-prod');
+}
+
+async function editarProd(id) {
+  await abrirProd();
+  const p = await api('/api/produtos/'+id);
+  $('p-id').value=p.id_produto; $('m-prod-titulo').textContent='Editar Produto';
+  $('p-desc').value=p.descricao; $('p-sku').value=p.codigo_sku;
+  $('p-unid').value=p.unidade_medida; $('p-cat').value=p.id_categoria;
+  $('p-custo').value=p.preco_custo; $('p-venda').value=p.preco_venda;
+  $('p-peso').value=p.peso_kg||'';
+}
+
+async function salvarProd() {
+  if (+$('p-venda').value <= +$('p-custo').value)
+    return toast('⚠ Preço de venda deve ser maior que o custo.');
+  const d = {
+    descricao:e($('p-desc')), codigo_sku:e($('p-sku')),
+    unidade_medida:$('p-unid').value, id_categoria:$('p-cat').value,
+    preco_custo:$('p-custo').value, preco_venda:$('p-venda').value,
+    peso_kg:$('p-peso').value||null, ativo:1,
+  };
+  if (!d.descricao||!d.codigo_sku) return toast('⚠ Preencha os campos obrigatórios.');
+  const id = $('p-id').value;
+  await api(id?'/api/produtos/'+id:'/api/produtos',
+            {method:id?'PUT':'POST', body:JSON.stringify(d)});
+  fechar('m-prod'); carregarProdutos(); toast('✅ Produto salvo!');
+}
+
+async function deletarProd(id) {
+  if (!confirm('Excluir este produto?')) return;
+  await api('/api/produtos/'+id, {method:'DELETE'});
+  carregarProdutos(); toast('✅ Produto excluído.');
+}
+
+// ═════════════════════════════════════════════════════════════
+// PEDIDOS
+// ═════════════════════════════════════════════════════════════
+async function carregarPedidos() {
+  const lista = await api('/api/pedidos');
+  tabela('t-ped',
+    ['ID','Cliente','Filial','Data','Status','Total','Ações'],
+    lista.map(p=>`<tr>
+      <td>#${p.id_pedido}</td><td>${p.cliente}</td><td>${p.filial}</td>
+      <td>${dt(p.dt_pedido)}</td>
+      <td><span class="badge ${statusCor[p.status]||'gr'}">${p.status}</span></td>
+      <td>${brl(p.valor_total)}</td>
+      <td>
+        <button class="btn bs bp" onclick="editarPed(${p.id_pedido})">Editar</button>
+        <button class="btn bs br" onclick="deletarPed(${p.id_pedido})">Excluir</button>
+      </td>
+    </tr>`)
+  );
+}
+
+async function abrirPed() {
+  const [clis, fils] = await Promise.all([api('/api/empresas?tipo=cliente'), api('/api/filiais')]);
+  $('ped-cli').innerHTML = clis.map(c=>`<option value="${c.id_empresa}">${c.razao_social}</option>`).join('');
+  $('ped-fil').innerHTML = fils.map(f=>`<option value="${f.id_filial}">${f.nome}</option>`).join('');
+  $('ped-id').value=''; $('m-ped-titulo').textContent='Novo Pedido';
+  $('ped-status').value='AGUARDANDO'; $('ped-prev').value=''; $('ped-obs').value='';
+  abrir('m-ped');
+}
+
+async function editarPed(id) {
+  await abrirPed();
+  const p = await api('/api/pedidos/'+id);
+  $('ped-id').value=p.id_pedido; $('m-ped-titulo').textContent='Editar Pedido';
+  $('ped-cli').value=p.id_empresa; $('ped-fil').value=p.id_filial;
+  $('ped-status').value=p.status; $('ped-obs').value=p.observacao||'';
+  if (p.dt_prevista_entrega) $('ped-prev').value=p.dt_prevista_entrega.substring(0,10);
+}
+
+async function salvarPed() {
+  const d = {
+    id_empresa:$('ped-cli').value, id_filial:$('ped-fil').value,
+    status:$('ped-status').value, dt_prevista_entrega:$('ped-prev').value||null,
+    observacao:$('ped-obs').value,
+  };
+  const id = $('ped-id').value;
+  await api(id?'/api/pedidos/'+id:'/api/pedidos',
+            {method:id?'PUT':'POST', body:JSON.stringify(d)});
+  fechar('m-ped'); carregarPedidos(); toast('✅ Pedido salvo!');
+}
+
+async function deletarPed(id) {
+  if (!confirm('Excluir este pedido?')) return;
+  await api('/api/pedidos/'+id, {method:'DELETE'});
+  carregarPedidos(); toast('✅ Pedido excluído.');
+}
+
+// ═════════════════════════════════════════════════════════════
+// NOTAS FISCAIS
+// ═════════════════════════════════════════════════════════════
+let _prods = [];
+
+async function carregarNotas() {
+  const lista = await api('/api/notas');
+  tabela('t-nf',
+    ['NF','Série','Pedido','Cliente','Emissão','Total','Ações'],
+    lista.map(n=>`<tr>
+      <td><strong>${n.numero_nf}</strong></td><td>${n.serie}</td>
+      <td>#${n.id_pedido}</td><td>${n.cliente}</td>
+      <td>${dt(n.dt_emissao)}</td><td>${brl(n.valor_total)}</td>
+      <td>
+        <button class="btn bs bp" onclick="verItens(${n.id_nf},'${n.numero_nf}')">Itens</button>
+        <button class="btn bs br" onclick="deletarNF(${n.id_nf})">Excluir</button>
+      </td>
+    </tr>`)
+  );
+}
+
+async function abrirNF() {
+  const [peds, prods] = await Promise.all([api('/api/pedidos'), api('/api/produtos')]);
+  _prods = prods;
+  $('nf-ped').innerHTML = peds.map(p=>`<option value="${p.id_pedido}">#${p.id_pedido} — ${p.cliente} (${p.status})</option>`).join('');
+  $('nf-num').value=''; $('nf-serie').value='001';
+  $('nf-itens').innerHTML=''; addItemNF();
+  abrir('m-nf');
+}
+
+function addItemNF() {
+  const opts = _prods.map(p=>`<option value="${p.id_produto}">${p.codigo_sku} — ${p.descricao}</option>`).join('');
+  const row = document.createElement('div');
+  row.style.cssText='display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:6px;margin-bottom:6px;align-items:center';
+  row.innerHTML=`
+    <select style="padding:6px;border:1px solid #dadce0;border-radius:6px;font-size:.83rem">${opts}</select>
+    <input type="number" placeholder="Qtd" min="1" style="padding:6px;border:1px solid #dadce0;border-radius:6px;font-size:.83rem">
+    <input type="number" placeholder="Preço" step="0.01" style="padding:6px;border:1px solid #dadce0;border-radius:6px;font-size:.83rem">
+    <button class="btn bs br" onclick="this.parentElement.remove()">✕</button>`;
+  $('nf-itens').appendChild(row);
+}
+
+async function salvarNF() {
+  const itens = [...$('nf-itens').children].map(r=>{
+    const [sel,qtd,preco] = r.querySelectorAll('select,input');
+    return {id_produto:sel.value, quantidade:qtd.value, preco_unitario:preco.value};
+  }).filter(it=>it.quantidade&&it.preco_unitario);
+  if (!itens.length) return toast('⚠ Adicione pelo menos um produto.');
+  if (!$('nf-num').value) return toast('⚠ Informe o número da NF.');
+  const d = {id_pedido:$('nf-ped').value, numero_nf:$('nf-num').value,
+              serie:$('nf-serie').value, itens};
+  await api('/api/notas', {method:'POST', body:JSON.stringify(d)});
+  fechar('m-nf'); carregarNotas(); toast('✅ Nota Fiscal emitida!');
+}
+
+async function verItens(id, num) {
+  const itens = await api('/api/notas/'+id+'/itens');
+  const linhas = itens.map(it=>
+    `• ${it.produto} (${it.codigo_sku}) — Qtd: ${it.quantidade} × ${brl(it.preco_unitario)}`
+  ).join('\n');
+  alert(`Itens da ${num}:\n\n${linhas}`);
+}
+
+async function deletarNF(id) {
+  if (!confirm('Excluir esta Nota Fiscal?')) return;
+  await api('/api/notas/'+id, {method:'DELETE'});
+  carregarNotas(); toast('✅ NF excluída.');
+}
+
+// ═════════════════════════════════════════════════════════════
+// FUNCIONÁRIOS
+// ═════════════════════════════════════════════════════════════
+async function carregarFuncionarios() {
+  const lista = await api('/api/funcionarios');
+  tabela('t-func',
+    ['ID','Nome','CPF','Cargo','Filial','Salário','Status','Ações'],
+    lista.map(f=>`<tr>
+      <td>${f.id_funcionario}</td><td>${f.nome}</td><td>${f.cpf}</td>
+      <td>${f.cargo}</td><td>${f.filial}</td><td>${brl(f.salario)}</td>
+      <td><span class="badge ${f.ativo?'g':'gr'}">${f.ativo?'Ativo':'Inativo'}</span></td>
+      <td>
+        <button class="btn bs bp" onclick="editarFunc(${f.id_funcionario})">Editar</button>
+        <button class="btn bs br" onclick="deletarFunc(${f.id_funcionario})">Desativar</button>
+      </td>
+    </tr>`)
+  );
+}
+
+async function abrirFunc() {
+  const fils = await api('/api/filiais');
+  $('f-fil').innerHTML = fils.map(f=>`<option value="${f.id_filial}">${f.nome}</option>`).join('');
+  $('f-id').value=''; $('m-func-titulo').textContent='Novo Funcionário';
+  ['f-nome','f-cpf','f-cargo','f-sal','f-adm'].forEach(i=>$(i).value='');
+  abrir('m-func');
+}
+
+async function editarFunc(id) {
+  await abrirFunc();
+  const lista = await api('/api/funcionarios');
+  const f = lista.find(x=>x.id_funcionario===id);
+  $('f-id').value=f.id_funcionario; $('m-func-titulo').textContent='Editar Funcionário';
+  $('f-nome').value=f.nome; $('f-cpf').value=f.cpf;
+  $('f-cargo').value=f.cargo; $('f-sal').value=f.salario;
+  $('f-fil').value=f.id_filial;
+  if (f.dt_admissao) $('f-adm').value=f.dt_admissao.substring(0,10);
+}
+
+async function salvarFunc() {
+  const d = {
+    id_filial:$('f-fil').value, nome:e($('f-nome')), cpf:e($('f-cpf')),
+    cargo:e($('f-cargo')), salario:$('f-sal').value, dt_admissao:$('f-adm').value, ativo:1,
+  };
+  if (!d.nome||!d.cpf) return toast('⚠ Preencha os campos obrigatórios.');
+  const id = $('f-id').value;
+  await api(id?'/api/funcionarios/'+id:'/api/funcionarios',
+            {method:id?'PUT':'POST', body:JSON.stringify(d)});
+  fechar('m-func'); carregarFuncionarios(); toast('✅ Funcionário salvo!');
+}
+
+async function deletarFunc(id) {
+  if (!confirm('Desativar este funcionário?')) return;
+  await api('/api/funcionarios/'+id, {method:'DELETE'});
+  carregarFuncionarios(); toast('✅ Funcionário desativado.');
+}
+
+// ═════════════════════════════════════════════════════════════
+// ESTOQUE
+// ═════════════════════════════════════════════════════════════
+async function carregarEstoque() {
+  const lista = await api('/api/estoque');
+  tabela('t-est',
+    ['Produto','Filial','Qtd Atual','Mínimo','Situação','Atualizado'],
+    lista.map(e=>{
+      const baixo = e.quantidade <= e.estoque_minimo;
+      return `<tr>
+        <td>${e.produto}</td><td>${e.filial}</td>
+        <td><strong>${e.quantidade}</strong></td><td>${e.estoque_minimo}</td>
+        <td><span class="badge ${baixo?'r':'g'}">${baixo?'⚠ Baixo':'OK'}</span></td>
+        <td>${dt(e.dt_atualizacao)}</td>
+      </tr>`;
+    })
+  );
+}
+
+// ── Helper: valor de input (trim) ────────────────────────────
+function e(el) { return el.value.trim(); }
+
+// ── Health check do banco ────────────────────────────────────
+async function checkDB() {
+  try {
+    const r = await api('/api/health');
+    const el = $('db-badge');
+    if (r.status==='ok') { el.textContent='✅ Banco conectado'; el.className='ok'; }
+    else { el.textContent='❌ Erro no banco'; el.className='err'; }
+  } catch { $('db-badge').textContent='❌ Sem conexão'; $('db-badge').className='err'; }
+}
+
+// ── Inicialização ────────────────────────────────────────────
+
+// ═════════════════════════════════════════════════════════════
+// MOVIMENTAÇÕES
+// ═════════════════════════════════════════════════════════════
+async function carregarMovimentacoes() {
+  const lista = await api("/api/movimentacoes");
+  tabela("t-mov",
+    ["ID","Tipo","Produto","Filial","Funcionário","Qtd","Motivo","Data"],
+    lista.map(m=>`<tr>
+      <td>${m.id_movimentacao}</td>
+      <td><span class="badge ${m.tipo==="ENTRADA"?"g":m.tipo==="SAIDA"?"r":"y"}">${m.tipo}</span></td>
+      <td>${m.produto}</td><td>${m.filial}</td><td>${m.funcionario}</td>
+      <td><strong>${m.quantidade}</strong></td>
+      <td>${m.motivo||"-"}</td><td>${dt(m.dt_movimentacao)}</td>
+    </tr>`)
+  );
+}
+async function abrirMov() {
+  const [prods, fils, funcs] = await Promise.all([
+    api("/api/produtos"), api("/api/filiais"), api("/api/funcionarios")
+  ]);
+  $("mov-prod").innerHTML = prods.map(p=>`<option value="${p.id_produto}">${p.codigo_sku} — ${p.descricao}</option>`).join("");
+  $("mov-fil").innerHTML  = fils.map(f=>`<option value="${f.id_filial}">${f.nome}</option>`).join("");
+  $("mov-func").innerHTML = funcs.map(f=>`<option value="${f.id_funcionario}">${f.nome}</option>`).join("");
+  ["mov-qtd","mov-motivo"].forEach(i=>$(i).value="");
+  $("mov-tipo").value="ENTRADA";
+  abrir("m-mov");
+}
+async function salvarMov() {
+  const d = {
+    id_produto:    $("mov-prod").value,
+    id_filial:     $("mov-fil").value,
+    id_funcionario:$("mov-func").value,
+    tipo:          $("mov-tipo").value,
+    quantidade:    $("mov-qtd").value,
+    motivo:        $("mov-motivo").value||null,
+  };
+  if (!d.quantidade) return toast("⚠ Informe a quantidade.");
+  await api("/api/movimentacoes", {method:"POST", body:JSON.stringify(d)});
+  fechar("m-mov"); carregarMovimentacoes(); carregarEstoque();
+  toast("✅ Movimentação registrada! Estoque atualizado.");
+}
+
+// ═════════════════════════════════════════════════════════════
+// ENTREGAS
+// ═════════════════════════════════════════════════════════════
+async function carregarEntregas() {
+  const lista = await api("/api/entregas");
+  tabela("t-ent",
+    ["ID","Pedido","Motorista","Placa","Saída","Chegada","Status","Ações"],
+    lista.map(en=>`<tr>
+      <td>${en.id_entrega}</td><td>#${en.id_pedido}</td>
+      <td>${en.motorista}</td><td>${en.placa}</td>
+      <td>${dt(en.dt_saida)}</td><td>${dt(en.dt_chegada)}</td>
+      <td><span class="badge ${statusCor[en.status]||"gr"}">${en.status}</span></td>
+      <td><button class="btn bs bp" onclick="editarEnt(${en.id_entrega})">Editar</button></td>
+    </tr>`)
+  );
+}
+async function abrirEnt() {
+  const [peds, funcs, veis] = await Promise.all([
+    api("/api/pedidos"), api("/api/funcionarios"), api("/api/veiculos")
+  ]);
+  $("ent-ped").innerHTML  = peds.map(p=>`<option value="${p.id_pedido}">#${p.id_pedido} — ${p.cliente}</option>`).join("");
+  $("ent-func").innerHTML = funcs.map(f=>`<option value="${f.id_funcionario}">${f.nome}</option>`).join("");
+  $("ent-vei").innerHTML  = veis.map(v=>`<option value="${v.id_veiculo}">${v.placa} — ${v.modelo}</option>`).join("");
+  $("ent-id").value=""; $("m-ent-titulo").textContent="Nova Entrega";
+  ["ent-saida","ent-chegada","ent-obs"].forEach(i=>$(i).value="");
+  $("ent-status").value="PENDENTE";
+  abrir("m-ent");
+}
+async function editarEnt(id) {
+  await abrirEnt();
+  const lista = await api("/api/entregas");
+  const en = lista.find(x=>x.id_entrega===id);
+  $("ent-id").value=en.id_entrega; $("m-ent-titulo").textContent="Editar Entrega";
+  $("ent-status").value=en.status; $("ent-obs").value=en.observacao||"";
+  if (en.dt_chegada) $("ent-chegada").value=en.dt_chegada.substring(0,16);
+}
+async function salvarEnt() {
+  const id = $("ent-id").value;
+  if (id) {
+    const d = {status:$("ent-status").value, dt_chegada:$("ent-chegada").value||null, observacao:$("ent-obs").value};
+    await api("/api/entregas/"+id, {method:"PUT", body:JSON.stringify(d)});
+  } else {
+    const d = {id_pedido:$("ent-ped").value, id_funcionario:$("ent-func").value, id_veiculo:$("ent-vei").value, dt_saida:$("ent-saida").value, observacao:$("ent-obs").value};
+    if (!d.dt_saida) return toast("⚠ Informe a data de saída.");
+    await api("/api/entregas", {method:"POST", body:JSON.stringify(d)});
+  }
+  fechar("m-ent"); carregarEntregas(); toast("✅ Entrega salva!");
+}
+
+// ═════════════════════════════════════════════════════════════
+// VEÍCULOS
+// ═════════════════════════════════════════════════════════════
+async function carregarVeiculos() {
+  const lista = await api("/api/veiculos");
+  tabela("t-vei",
+    ["Placa","Modelo","Marca","Ano","Capacidade","Filial","Status","Ações"],
+    lista.map(v=>`<tr>
+      <td><strong>${v.placa}</strong></td><td>${v.modelo}</td>
+      <td>${v.marca||"-"}</td><td>${v.ano||"-"}</td>
+      <td>${v.capacidade_kg!=null?v.capacidade_kg+"kg":"-"}</td>
+      <td>${v.filial}</td>
+      <td><span class="badge ${v.ativo?"g":"gr"}">${v.ativo?"Ativo":"Inativo"}</span></td>
+      <td>
+        <button class="btn bs bp" onclick="editarVei(${v.id_veiculo})">Editar</button>
+        <button class="btn bs br" onclick="desativarVei(${v.id_veiculo})">Desativar</button>
+      </td>
+    </tr>`)
+  );
+}
+async function abrirVei() {
+  const fils = await api("/api/filiais");
+  $("v-fil").innerHTML = fils.map(f=>`<option value="${f.id_filial}">${f.nome}</option>`).join("");
+  $("v-id").value=""; $("m-vei-titulo").textContent="Novo Veículo";
+  ["v-placa","v-modelo","v-marca","v-ano","v-cap"].forEach(i=>$(i).value="");
+  abrir("m-vei");
+}
+async function editarVei(id) {
+  await abrirVei();
+  const lista = await api("/api/veiculos");
+  const v = lista.find(x=>x.id_veiculo===id);
+  $("v-id").value=v.id_veiculo; $("m-vei-titulo").textContent="Editar Veículo";
+  $("v-modelo").value=v.modelo; $("v-marca").value=v.marca||"";
+  $("v-ano").value=v.ano||""; $("v-cap").value=v.capacidade_kg||"";
+  $("v-fil").value=v.id_filial;
+}
+async function salvarVei() {
+  const id = $("v-id").value;
+  if (id) {
+    const d = {modelo:$("v-modelo").value, marca:$("v-marca").value||null, ano:$("v-ano").value||null, capacidade_kg:$("v-cap").value||null, ativo:1};
+    await api("/api/veiculos/"+id, {method:"PUT", body:JSON.stringify(d)});
+  } else {
+    const d = {id_filial:$("v-fil").value, placa:$("v-placa").value.toUpperCase(), modelo:$("v-modelo").value, marca:$("v-marca").value||null, ano:$("v-ano").value||null, capacidade_kg:$("v-cap").value||null};
+    if (!d.placa||!d.modelo) return toast("⚠ Preencha placa e modelo.");
+    await api("/api/veiculos", {method:"POST", body:JSON.stringify(d)});
+  }
+  fechar("m-vei"); carregarVeiculos(); toast("✅ Veículo salvo!");
+}
+async function desativarVei(id) {
+  if (!confirm("Desativar este veículo?")) return;
+  await api("/api/veiculos/"+id, {method:"DELETE"});
+  carregarVeiculos(); toast("✅ Veículo desativado.");
+}
+
+// ═════════════════════════════════════════════════════════════
+// FORNECIMENTOS
+// ═════════════════════════════════════════════════════════════
+async function carregarFornecimentos() {
+  const lista = await api("/api/fornecimentos");
+  tabela("t-forn",
+    ["Fornecedor","Produto","SKU","Preço Negociado","Prazo (dias)","Última Entrega","Ações"],
+    lista.map(f=>`<tr>
+      <td>${f.fornecedor}</td><td>${f.produto}</td><td>${f.codigo_sku}</td>
+      <td>${brl(f.preco_negociado)}</td>
+      <td>${f.prazo_entrega_dias||"-"}</td>
+      <td>${dt(f.dt_ultima_entrega)}</td>
+      <td><button class="btn bs br" onclick="deletarFornec(${f.id_empresa},${f.id_produto})">Excluir</button></td>
+    </tr>`)
+  );
+}
+async function abrirFornec() {
+  const [emps, prods] = await Promise.all([api("/api/empresas?tipo=fornecedor"), api("/api/produtos")]);
+  $("fn-emp").innerHTML  = emps.map(e=>`<option value="${e.id_empresa}">${e.razao_social}</option>`).join("");
+  $("fn-prod").innerHTML = prods.map(p=>`<option value="${p.id_produto}">${p.codigo_sku} — ${p.descricao}</option>`).join("");
+  ["fn-preco","fn-prazo","fn-ultima"].forEach(i=>$(i).value="");
+  abrir("m-fornec");
+}
+async function salvarFornec() {
+  const d = {id_empresa:$("fn-emp").value, id_produto:$("fn-prod").value, preco_negociado:$("fn-preco").value, prazo_entrega_dias:$("fn-prazo").value||null, dt_ultima_entrega:$("fn-ultima").value||null};
+  if (!d.preco_negociado) return toast("⚠ Informe o preço negociado.");
+  await api("/api/fornecimentos", {method:"POST", body:JSON.stringify(d)});
+  fechar("m-fornec"); carregarFornecimentos(); toast("✅ Fornecimento cadastrado!");
+}
+async function deletarFornec(id_empresa, id_produto) {
+  if (!confirm("Excluir este fornecimento?")) return;
+  await api(`/api/fornecimentos/${id_empresa}/${id_produto}`, {method:"DELETE"});
+  carregarFornecimentos(); toast("✅ Fornecimento excluído.");
+}
+
+// ═════════════════════════════════════════════════════════════
+// FILIAIS
+// ═════════════════════════════════════════════════════════════
+async function carregarFiliaisCompleto() {
+  const lista = await api("/api/filiais/completo");
+  tabela("t-fil",
+    ["ID","Nome","CNPJ","Cidade/UF","Telefone","Inauguração","Ações"],
+    lista.map(f=>`<tr>
+      <td>${f.id_filial}</td><td>${f.nome}</td><td>${f.cnpj}</td>
+      <td>${f.cidade}/${f.estado}</td>
+      <td>${f.telefone||"-"}</td><td>${dt(f.dt_inauguracao)}</td>
+      <td><button class="btn bs bp" onclick="editarFil(${f.id_filial})">Editar</button></td>
+    </tr>`)
+  );
+}
+function abrirFil() {
+  $("fl-id").value=""; $("m-fil-titulo").textContent="Nova Filial";
+  ["fl-nome","fl-cnpj","fl-tel","fl-inau","fl-logradouro","fl-bairro","fl-cep","fl-cidade","fl-estado"].forEach(i=>$(i).value="");
+  abrir("m-fil");
+}
+async function editarFil(id) {
+  const lista = await api("/api/filiais/completo");
+  const f = lista.find(x=>x.id_filial===id);
+  $("fl-id").value=f.id_filial; $("m-fil-titulo").textContent="Editar Filial";
+  $("fl-nome").value=f.nome; $("fl-cnpj").value=f.cnpj;
+  $("fl-tel").value=f.telefone||""; $("fl-logradouro").value=f.logradouro;
+  $("fl-bairro").value=f.bairro; $("fl-cep").value=f.cep;
+  $("fl-cidade").value=f.cidade; $("fl-estado").value=f.estado;
+  if (f.dt_inauguracao) $("fl-inau").value=f.dt_inauguracao.substring(0,10);
+  abrir("m-fil");
+}
+async function salvarFil() {
+  const id = $("fl-id").value;
+  const d = {nome:$("fl-nome").value, cnpj:$("fl-cnpj").value, telefone:$("fl-tel").value||null, dt_inauguracao:$("fl-inau").value, logradouro:$("fl-logradouro").value, bairro:$("fl-bairro").value, cep:$("fl-cep").value, cidade:$("fl-cidade").value, estado:$("fl-estado").value.toUpperCase()};
+  if (!d.nome||!d.cnpj) return toast("⚠ Preencha os campos obrigatórios.");
+  if (id) await api("/api/filiais/"+id, {method:"PUT", body:JSON.stringify(d)});
+  else    await api("/api/filiais",     {method:"POST",body:JSON.stringify(d)});
+  fechar("m-fil"); carregarFiliaisCompleto(); toast("✅ Filial salva!");
+}
+
+// ═════════════════════════════════════════════════════════════
+// CATEGORIAS
+// ═════════════════════════════════════════════════════════════
+async function carregarCategorias() {
+  const lista = await api("/api/categorias/completo");
+  tabela("t-cat",
+    ["ID","Nome","Descrição","Ações"],
+    lista.map(c=>`<tr>
+      <td>${c.id_categoria}</td><td>${c.nome}</td><td>${c.descricao||"-"}</td>
+      <td>
+        <button class="btn bs bp" onclick="editarCat(${c.id_categoria},'${c.nome}','${c.descricao||""}')">Editar</button>
+        <button class="btn bs br" onclick="deletarCat(${c.id_categoria})">Excluir</button>
+      </td>
+    </tr>`)
+  );
+}
+function abrirCat() {
+  $("ct-id").value=""; $("m-cat-titulo").textContent="Nova Categoria";
+  ["ct-nome","ct-desc"].forEach(i=>$(i).value="");
+  abrir("m-cat");
+}
+function editarCat(id, nome, desc) {
+  $("ct-id").value=id; $("m-cat-titulo").textContent="Editar Categoria";
+  $("ct-nome").value=nome; $("ct-desc").value=desc;
+  abrir("m-cat");
+}
+async function salvarCat() {
+  const id = $("ct-id").value;
+  const d = {nome:$("ct-nome").value, descricao:$("ct-desc").value||null};
+  if (!d.nome) return toast("⚠ Informe o nome.");
+  if (id) await api("/api/categorias/"+id, {method:"PUT", body:JSON.stringify(d)});
+  else    await api("/api/categorias",     {method:"POST",body:JSON.stringify(d)});
+  fechar("m-cat"); carregarCategorias(); toast("✅ Categoria salva!");
+}
+async function deletarCat(id) {
+  if (!confirm("Excluir esta categoria?")) return;
+  await api("/api/categorias/"+id, {method:"DELETE"});
+  carregarCategorias(); toast("✅ Categoria excluída.");
+}
+checkDB();
+carregarEmpresas('todos');
+</script>
+</body>
+</html>
