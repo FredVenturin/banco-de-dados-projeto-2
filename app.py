@@ -38,7 +38,8 @@ def exec_sp(sp, params=[]):
     with get_conn() as conn:
         cur = conn.cursor()
         placeholders = ','.join(['?'] * len(params))
-        cur.execute(f"EXEC {sp} {placeholders}", params)
+        sql = f"EXEC {sp}" if not params else f"EXEC {sp} {placeholders}"
+        cur.execute(sql, params)
         conn.commit()
 
 def query_sp(sp, params=[]):
@@ -46,8 +47,23 @@ def query_sp(sp, params=[]):
     with get_conn() as conn:
         cur = conn.cursor()
         placeholders = ','.join(['?'] * len(params))
-        cur.execute(f"EXEC {sp} {placeholders}", params)
+        sql = f"EXEC {sp}" if not params else f"EXEC {sp} {placeholders}"
+        cur.execute(sql, params)
         return to_list(cur)
+
+def query_sql(sql, params=[]):
+    # usada apenas para buscar um registro antes de chamar uma SP de atualização
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute(sql, params)
+        return to_list(cur)
+
+def execute_sql(sql, params=[]):
+    # usada apenas em tabelas auxiliares que não possuem SP própria no SQL final
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute(sql, params)
+        conn.commit()
 
 # ─────────────────────────────────────────────────
 # PÁGINAS
@@ -75,11 +91,8 @@ def listar_empresas():
 
 @app.route("/api/empresas/<int:id>")
 def get_empresa(id):
-    with get_conn() as conn:
-        cur = conn.cursor()
-        cur.execute("SELECT * FROM EMPRESA WHERE id_empresa=?", id)
-        r = to_list(cur)
-        return jsonify(r[0]) if r else ("", 404)
+    r = query_sql("SELECT * FROM EMPRESA WHERE id_empresa=?", [id])
+    return jsonify(r[0]) if r else ("", 404)
 
 @app.route("/api/empresas", methods=["POST"])
 def criar_empresa():
@@ -100,13 +113,23 @@ def editar_empresa(id):
         d.get("contato_responsavel"), int(d.get("is_cliente", 0)),
         int(d.get("is_fornecedor", 0)), d.get("limite_credito", 0),
         d["logradouro"], d["bairro"], d["cep"], d["cidade"], d["estado"],
-        d.get("ativo", 1)
+        int(d.get("ativo", 1))
     ])
     return jsonify({"ok": True})
 
 @app.route("/api/empresas/<int:id>", methods=["DELETE"])
 def deletar_empresa(id):
-    exec_sp("sp_desativar_empresa", [id])
+    r = query_sql("SELECT * FROM EMPRESA WHERE id_empresa=?", [id])
+    if not r:
+        return ("", 404)
+
+    e = r[0]
+    exec_sp("sp_atualizar_empresa", [
+        id, e["razao_social"], e["cnpj"], e.get("telefone"), e.get("email"),
+        e.get("contato_responsavel"), int(e.get("is_cliente", 0)),
+        int(e.get("is_fornecedor", 0)), e.get("limite_credito", 0),
+        e["logradouro"], e["bairro"], e["cep"], e["cidade"], e["estado"], 0
+    ])
     return jsonify({"ok": True})
 
 # ═════════════════════════════════════════════════
@@ -118,11 +141,8 @@ def listar_produtos():
 
 @app.route("/api/produtos/<int:id>")
 def get_produto(id):
-    with get_conn() as conn:
-        cur = conn.cursor()
-        cur.execute("SELECT * FROM PRODUTO WHERE id_produto=?", id)
-        r = to_list(cur)
-        return jsonify(r[0]) if r else ("", 404)
+    r = query_sql("SELECT * FROM PRODUTO WHERE id_produto=?", [id])
+    return jsonify(r[0]) if r else ("", 404)
 
 @app.route("/api/produtos", methods=["POST"])
 def criar_produto():
@@ -139,13 +159,22 @@ def editar_produto(id):
     exec_sp("sp_atualizar_produto", [
         id, d["id_categoria"], d["codigo_sku"], d["descricao"],
         d["unidade_medida"], d["preco_custo"], d["preco_venda"],
-        d.get("peso_kg"), d.get("ativo", 1)
+        d.get("peso_kg"), int(d.get("ativo", 1))
     ])
     return jsonify({"ok": True})
 
 @app.route("/api/produtos/<int:id>", methods=["DELETE"])
 def deletar_produto(id):
-    exec_sp("sp_deletar_produto", [id])
+    r = query_sql("SELECT * FROM PRODUTO WHERE id_produto=?", [id])
+    if not r:
+        return ("", 404)
+
+    p = r[0]
+    exec_sp("sp_atualizar_produto", [
+        id, p["id_categoria"], p["codigo_sku"], p["descricao"],
+        p["unidade_medida"], p["preco_custo"], p["preco_venda"],
+        p.get("peso_kg"), 0
+    ])
     return jsonify({"ok": True})
 
 # ═════════════════════════════════════════════════
@@ -157,14 +186,13 @@ def listar_pedidos():
 
 @app.route("/api/pedidos/<int:id>")
 def get_pedido(id):
-    with get_conn() as conn:
-        cur = conn.cursor()
-        cur.execute(
-            "SELECT p.*,e.razao_social AS cliente,f.nome AS filial "
-            "FROM PEDIDO p JOIN EMPRESA e ON e.id_empresa=p.id_empresa "
-            "JOIN FILIAL f ON f.id_filial=p.id_filial WHERE p.id_pedido=?", id)
-        r = to_list(cur)
-        return jsonify(r[0]) if r else ("", 404)
+    r = query_sql(
+        "SELECT p.*,e.razao_social AS cliente,f.nome AS filial "
+        "FROM PEDIDO p JOIN EMPRESA e ON e.id_empresa=p.id_empresa "
+        "JOIN FILIAL f ON f.id_filial=p.id_filial WHERE p.id_pedido=?",
+        [id]
+    )
+    return jsonify(r[0]) if r else ("", 404)
 
 @app.route("/api/pedidos", methods=["POST"])
 def criar_pedido():
@@ -185,7 +213,14 @@ def editar_pedido(id):
 
 @app.route("/api/pedidos/<int:id>", methods=["DELETE"])
 def deletar_pedido(id):
-    exec_sp("sp_deletar_pedido", [id])
+    r = query_sql("SELECT dt_prevista_entrega, observacao FROM PEDIDO WHERE id_pedido=?", [id])
+    if not r:
+        return ("", 404)
+
+    p = r[0]
+    exec_sp("sp_atualizar_pedido", [
+        id, "CANCELADO", p.get("dt_prevista_entrega"), p.get("observacao")
+    ])
     return jsonify({"ok": True})
 
 # ═════════════════════════════════════════════════
@@ -204,18 +239,23 @@ def criar_nota():
     d = request.json
     with get_conn() as conn:
         cur = conn.cursor()
-        cur.execute("EXEC sp_inserir_nota ?,?,?,?",
+        cur.execute(
+            "EXEC sp_inserir_nota ?,?,?,?",
             d["id_pedido"], d["numero_nf"],
-            d.get("serie", "001"), d.get("chave_acesso"))
-        cur.execute("SELECT SCOPE_IDENTITY()")
+            d.get("serie", "001"), d.get("chave_acesso")
+        )
         id_nf = int(cur.fetchone()[0])
+
+        # ITEM_NOTA não possui SP própria no SQL final.
+        # A trigger trg_valor_nota recalcula o valor_total automaticamente.
         for it in d.get("itens", []):
             cur.execute(
-                "INSERT INTO ITEM_NOTA (id_nf,id_produto,quantidade,preco_unitario)"
-                " VALUES (?,?,?,?)",
+                "INSERT INTO ITEM_NOTA (id_nf,id_produto,quantidade,preco_unitario) VALUES (?,?,?,?)",
                 id_nf, it["id_produto"], it["quantidade"], it["preco_unitario"]
             )
+
         conn.commit()
+
     return jsonify({"ok": True, "id_nf": id_nf}), 201
 
 @app.route("/api/notas/<int:id>", methods=["DELETE"])
@@ -230,6 +270,11 @@ def deletar_nota(id):
 def listar_funcionarios():
     return jsonify(query_sp("sp_listar_funcionarios"))
 
+@app.route("/api/funcionarios/<int:id>")
+def get_funcionario(id):
+    r = query_sql("SELECT * FROM FUNCIONARIO WHERE id_funcionario=?", [id])
+    return jsonify(r[0]) if r else ("", 404)
+
 @app.route("/api/funcionarios", methods=["POST"])
 def criar_funcionario():
     d = request.json
@@ -243,41 +288,33 @@ def criar_funcionario():
 def editar_funcionario(id):
     d = request.json
     exec_sp("sp_atualizar_funcionario", [
-        id, d["nome"], d["cargo"], d["salario"], d.get("ativo", 1)
+        id, d["nome"], d["cargo"], d["salario"], int(d.get("ativo", 1))
     ])
     return jsonify({"ok": True})
 
 @app.route("/api/funcionarios/<int:id>", methods=["DELETE"])
 def deletar_funcionario(id):
-    exec_sp("sp_desativar_funcionario", [id])
+    r = query_sql("SELECT * FROM FUNCIONARIO WHERE id_funcionario=?", [id])
+    if not r:
+        return ("", 404)
+
+    f = r[0]
+    exec_sp("sp_atualizar_funcionario", [
+        id, f["nome"], f["cargo"], f["salario"], 0
+    ])
     return jsonify({"ok": True})
-
-# ═════════════════════════════════════════════════
-# AUXILIARES
-# ═════════════════════════════════════════════════
-@app.route("/api/categorias")
-def categorias():
-    return jsonify(query_sp("sp_listar_categorias"))
-
-@app.route("/api/filiais")
-def filiais():
-    return jsonify(query_sp("sp_listar_filiais"))
-
-@app.route("/api/estoque")
-def estoque():
-    return jsonify(query_sp("sp_listar_estoque"))
-
-# ─────────────────────────────────────────────────
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=True)
 
 # ═════════════════════════════════════════════════
 # FILIAIS
 # ═════════════════════════════════════════════════
-@app.route("/api/filiais/completo")
-def listar_filiais_completo():
-    return jsonify(query_sp("sp_listar_filiais_completo"))
+@app.route("/api/filiais")
+def listar_filiais():
+    return jsonify(query_sp("sp_listar_filiais"))
+
+@app.route("/api/filiais/<int:id>")
+def get_filial(id):
+    r = query_sql("SELECT * FROM FILIAL WHERE id_filial=?", [id])
+    return jsonify(r[0]) if r else ("", 404)
 
 @app.route("/api/filiais", methods=["POST"])
 def criar_filial():
@@ -292,36 +329,23 @@ def criar_filial():
 def editar_filial(id):
     d = request.json
     exec_sp("sp_atualizar_filial", [
-        id, d["nome"], d["cnpj"], d.get("telefone"),
-        d["logradouro"], d["bairro"], d["cep"], d["cidade"], d["estado"]
+        id, d["nome"], d["cnpj"], d.get("telefone"), d["dt_inauguracao"],
+        d["logradouro"], d["bairro"], d["cep"], d["cidade"], d["estado"],
+        int(d.get("ativo", 1))
     ])
     return jsonify({"ok": True})
 
-# ═════════════════════════════════════════════════
-# CATEGORIAS
-# ═════════════════════════════════════════════════
-@app.route("/api/categorias/completo")
-def listar_categorias_completo():
-    with get_conn() as conn:
-        cur = conn.cursor()
-        cur.execute("SELECT id_categoria,nome,descricao FROM CATEGORIA ORDER BY nome")
-        return jsonify(to_list(cur))
+@app.route("/api/filiais/<int:id>", methods=["DELETE"])
+def deletar_filial(id):
+    r = query_sql("SELECT * FROM FILIAL WHERE id_filial=?", [id])
+    if not r:
+        return ("", 404)
 
-@app.route("/api/categorias", methods=["POST"])
-def criar_categoria():
-    d = request.json
-    exec_sp("sp_inserir_categoria", [d["nome"], d.get("descricao")])
-    return jsonify({"ok": True}), 201
-
-@app.route("/api/categorias/<int:id>", methods=["PUT"])
-def editar_categoria(id):
-    d = request.json
-    exec_sp("sp_atualizar_categoria", [id, d["nome"], d.get("descricao")])
-    return jsonify({"ok": True})
-
-@app.route("/api/categorias/<int:id>", methods=["DELETE"])
-def deletar_categoria(id):
-    exec_sp("sp_deletar_categoria", [id])
+    f = r[0]
+    exec_sp("sp_atualizar_filial", [
+        id, f["nome"], f["cnpj"], f.get("telefone"), f["dt_inauguracao"],
+        f["logradouro"], f["bairro"], f["cep"], f["cidade"], f["estado"], 0
+    ])
     return jsonify({"ok": True})
 
 # ═════════════════════════════════════════════════
@@ -330,6 +354,11 @@ def deletar_categoria(id):
 @app.route("/api/veiculos")
 def listar_veiculos():
     return jsonify(query_sp("sp_listar_veiculos"))
+
+@app.route("/api/veiculos/<int:id>")
+def get_veiculo(id):
+    r = query_sql("SELECT * FROM VEICULO WHERE id_veiculo=?", [id])
+    return jsonify(r[0]) if r else ("", 404)
 
 @app.route("/api/veiculos", methods=["POST"])
 def criar_veiculo():
@@ -344,14 +373,22 @@ def criar_veiculo():
 def editar_veiculo(id):
     d = request.json
     exec_sp("sp_atualizar_veiculo", [
-        id, d["modelo"], d.get("marca"),
-        d.get("ano"), d.get("capacidade_kg"), d.get("ativo", 1)
+        id, d["id_filial"], d["placa"], d["modelo"],
+        d.get("marca"), d.get("ano"), d.get("capacidade_kg"), int(d.get("ativo", 1))
     ])
     return jsonify({"ok": True})
 
 @app.route("/api/veiculos/<int:id>", methods=["DELETE"])
-def desativar_veiculo(id):
-    exec_sp("sp_desativar_veiculo", [id])
+def deletar_veiculo(id):
+    r = query_sql("SELECT * FROM VEICULO WHERE id_veiculo=?", [id])
+    if not r:
+        return ("", 404)
+
+    v = r[0]
+    exec_sp("sp_atualizar_veiculo", [
+        id, v["id_filial"], v["placa"], v["modelo"],
+        v.get("marca"), v.get("ano"), v.get("capacidade_kg"), 0
+    ])
     return jsonify({"ok": True})
 
 # ═════════════════════════════════════════════════
@@ -361,12 +398,18 @@ def desativar_veiculo(id):
 def listar_entregas():
     return jsonify(query_sp("sp_listar_entregas"))
 
+@app.route("/api/entregas/<int:id>")
+def get_entrega(id):
+    r = query_sql("SELECT * FROM ENTREGA WHERE id_entrega=?", [id])
+    return jsonify(r[0]) if r else ("", 404)
+
 @app.route("/api/entregas", methods=["POST"])
 def criar_entrega():
     d = request.json
     exec_sp("sp_inserir_entrega", [
         d["id_pedido"], d["id_funcionario"], d["id_veiculo"],
-        d["dt_saida"], d.get("observacao")
+        d["dt_saida"], d.get("dt_chegada"),
+        d.get("status", "PENDENTE"), d.get("observacao")
     ])
     return jsonify({"ok": True}), 201
 
@@ -374,52 +417,60 @@ def criar_entrega():
 def editar_entrega(id):
     d = request.json
     exec_sp("sp_atualizar_entrega", [
-        id, d["status"], d.get("dt_chegada"), d.get("observacao")
+        id, d["id_pedido"], d["id_funcionario"], d["id_veiculo"],
+        d["dt_saida"], d.get("dt_chegada"),
+        d["status"], d.get("observacao")
+    ])
+    return jsonify({"ok": True})
+
+@app.route("/api/entregas/<int:id>", methods=["DELETE"])
+def deletar_entrega(id):
+    r = query_sql("SELECT * FROM ENTREGA WHERE id_entrega=?", [id])
+    if not r:
+        return ("", 404)
+
+    e = r[0]
+    exec_sp("sp_atualizar_entrega", [
+        id, e["id_pedido"], e["id_funcionario"], e["id_veiculo"],
+        e["dt_saida"], e.get("dt_chegada"), "CANCELADA", e.get("observacao")
     ])
     return jsonify({"ok": True})
 
 # ═════════════════════════════════════════════════
-# FORNECIMENTOS
+# AUXILIARES
 # ═════════════════════════════════════════════════
-@app.route("/api/fornecimentos")
-def listar_fornecimentos():
-    return jsonify(query_sp("sp_listar_fornece"))
+@app.route("/api/categorias")
+def categorias():
+    return jsonify(query_sp("sp_listar_categorias"))
 
-@app.route("/api/fornecimentos", methods=["POST"])
-def criar_fornecimento():
-    d = request.json
-    exec_sp("sp_inserir_fornece", [
-        d["id_empresa"], d["id_produto"], d["preco_negociado"],
-        d.get("prazo_entrega_dias"), d.get("dt_ultima_entrega")
-    ])
-    return jsonify({"ok": True}), 201
-
-@app.route("/api/fornecimentos/<int:id_empresa>/<int:id_produto>", methods=["PUT"])
-def editar_fornecimento(id_empresa, id_produto):
-    d = request.json
-    exec_sp("sp_atualizar_fornece", [
-        id_empresa, id_produto, d["preco_negociado"],
-        d.get("prazo_entrega_dias"), d.get("dt_ultima_entrega")
-    ])
-    return jsonify({"ok": True})
-
-@app.route("/api/fornecimentos/<int:id_empresa>/<int:id_produto>", methods=["DELETE"])
-def deletar_fornecimento(id_empresa, id_produto):
-    exec_sp("sp_deletar_fornece", [id_empresa, id_produto])
-    return jsonify({"ok": True})
+@app.route("/api/estoque")
+def estoque():
+    return jsonify(query_sp("sp_listar_estoque"))
 
 # ═════════════════════════════════════════════════
-# MOVIMENTAÇÕES
+# RELATÓRIOS / VIEWS
 # ═════════════════════════════════════════════════
-@app.route("/api/movimentacoes")
-def listar_movimentacoes():
-    return jsonify(query_sp("sp_listar_movimentacoes"))
+@app.route("/api/relatorios/pedidos-clientes")
+def rel_pedidos_clientes():
+    return jsonify(query_sql("SELECT * FROM vw_pedidos_por_cliente"))
 
-@app.route("/api/movimentacoes", methods=["POST"])
-def criar_movimentacao():
-    d = request.json
-    exec_sp("sp_inserir_movimentacao", [
-        d["id_produto"], d["id_filial"], d["id_funcionario"],
-        d["tipo"], d["quantidade"], d.get("motivo")
-    ])
-    return jsonify({"ok": True}), 201
+@app.route("/api/relatorios/estoque-filial")
+def rel_estoque_filial():
+    return jsonify(query_sql("SELECT * FROM vw_posicao_estoque_filial"))
+
+@app.route("/api/relatorios/produtos-fornecedor")
+def rel_produtos_fornecedor():
+    return jsonify(query_sql("SELECT * FROM vw_produtos_por_fornecedor"))
+
+@app.route("/api/relatorios/faturamento-cliente")
+def rel_faturamento_cliente():
+    return jsonify(query_sql("SELECT * FROM vw_faturamento_por_cliente"))
+
+@app.route("/api/relatorios/entregas-motorista-veiculo")
+def rel_entregas_motorista_veiculo():
+    return jsonify(query_sql("SELECT * FROM vw_entregas_por_motorista_veiculo"))
+
+# ─────────────────────────────────────────────────
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)

@@ -1013,7 +1013,7 @@ async function editarVei(id) {
   $("v-marca").value=v.marca||""; $("v-ano").value=v.ano||"";
   $("v-cap").value=v.capacidade_kg||""; $("v-fil").value=v.id_filial;
 }
-async function salvarVei() {
+async function salvarVei()async function salvarVei() {
   const id = $("v-id").value;
   const d = {
     id_filial:$("v-fil").value,
@@ -1028,7 +1028,7 @@ async function salvarVei() {
   await api(id?"/api/veiculos/"+id:"/api/veiculos", {method:id?"PUT":"POST", body:JSON.stringify(d)});
   fechar("m-vei"); carregarVeiculos(); toast("✅ Veículo salvo!");
 }
-async function desativarVei(id) {
+async function desativarVeiasync function desativarVei(id) {
   if (!confirm("Desativar este veículo?")) return;
   await api("/api/veiculos/"+id, {method:"DELETE"});
   carregarVeiculos(); toast("✅ Veículo desativado.");
