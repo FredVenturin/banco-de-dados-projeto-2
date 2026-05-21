@@ -72,6 +72,8 @@
 --  SET NOCOUNT ON
 --    Desliga as mensagens "(X linhas afetadas)" dentro das SPs.
 --    Sem isso o Python poderia interpretar essas mensagens como resultado de consulta.
+--    Usado APENAS em sp_inserir_nota, pois ela faz INSERT seguido de SELECT —
+--    sem SET NOCOUNT ON o Python leria a mensagem de contagem no lugar do SCOPE_IDENTITY().
 --
 --  DECLARE @variavel TABLE (...)
 --    Cria uma tabela temporária que existe só durante a execução.
@@ -704,7 +706,6 @@ CREATE OR ALTER PROCEDURE sp_inserir_empresa
     @cidade VARCHAR(80), @estado CHAR(2)
 AS
 BEGIN
-    SET NOCOUNT ON;
     -- insere a empresa com todos os dados recebidos
     INSERT INTO EMPRESA (razao_social,cnpj,telefone,email,contato_responsavel,
         is_cliente,is_fornecedor,limite_credito,logradouro,bairro,cep,cidade,estado)
@@ -724,7 +725,6 @@ CREATE OR ALTER PROCEDURE sp_atualizar_empresa
     @bairro VARCHAR(100), @cep CHAR(8), @cidade VARCHAR(80), @estado CHAR(2), @ativo BIT = 1
 AS
 BEGIN
-    SET NOCOUNT ON;
     -- atualiza todos os campos da empresa de uma vez
     -- o WHERE garante que só a empresa com esse id seja alterada
     UPDATE EMPRESA SET razao_social=@razao_social, cnpj=@cnpj, telefone=@telefone,
@@ -743,7 +743,6 @@ CREATE OR ALTER PROCEDURE sp_listar_empresas
     @tipo VARCHAR(12) = 'todos'
 AS
 BEGIN
-    SET NOCOUNT ON;
     -- o WHERE usa OR pra cobrir os três casos possíveis do filtro
     -- retorna ordenado por nome pra facilitar a visualização
     SELECT id_empresa,razao_social,cnpj,telefone,email,contato_responsavel,
@@ -769,7 +768,6 @@ CREATE OR ALTER PROCEDURE sp_inserir_produto
     @preco_venda DECIMAL(10,2), @peso_kg DECIMAL(8,3) = NULL
 AS
 BEGIN
-    SET NOCOUNT ON;
     INSERT INTO PRODUTO (id_categoria,codigo_sku,descricao,unidade_medida,preco_custo,preco_venda,peso_kg)
     VALUES (@id_categoria,@codigo_sku,@descricao,@unidade_medida,@preco_custo,@preco_venda,@peso_kg);
 END;
@@ -785,7 +783,6 @@ CREATE OR ALTER PROCEDURE sp_atualizar_produto
     @peso_kg DECIMAL(8,3) = NULL, @ativo BIT = 1
 AS
 BEGIN
-    SET NOCOUNT ON;
     -- atualiza todos os campos do produto de uma vez
     -- o WHERE garante que só o produto com esse id seja alterado
     UPDATE PRODUTO SET id_categoria=@id_categoria, codigo_sku=@codigo_sku,
@@ -800,7 +797,6 @@ GO
 CREATE OR ALTER PROCEDURE sp_listar_produtos
 AS
 BEGIN
-    SET NOCOUNT ON;
     -- traz o nome da categoria via JOIN pra não retornar só o id
     -- ordenado por descrição pra facilitar a busca na tela
     SELECT p.id_produto,p.codigo_sku,p.descricao,p.unidade_medida,
@@ -825,7 +821,6 @@ CREATE OR ALTER PROCEDURE sp_inserir_pedido
     @observacao VARCHAR(300) = NULL
 AS
 BEGIN
-    SET NOCOUNT ON;
     INSERT INTO PEDIDO (id_empresa,id_filial,dt_prevista_entrega,status,observacao)
     VALUES (@id_empresa,@id_filial,@dt_prevista_entrega,@status,@observacao);
 END;
@@ -839,7 +834,6 @@ CREATE OR ALTER PROCEDURE sp_atualizar_pedido
     @dt_prevista_entrega DATE = NULL, @observacao VARCHAR(300) = NULL
 AS
 BEGIN
-    SET NOCOUNT ON;
     UPDATE PEDIDO SET status=@status, dt_prevista_entrega=@dt_prevista_entrega,
         observacao=@observacao
     WHERE id_pedido=@id_pedido;
@@ -850,7 +844,6 @@ GO
 CREATE OR ALTER PROCEDURE sp_listar_pedidos
 AS
 BEGIN
-    SET NOCOUNT ON;
     -- traz o nome do cliente e da filial via JOIN pra não retornar só ids
     -- ordenado do mais recente pro mais antigo
     SELECT p.id_pedido,p.dt_pedido,p.status,p.valor_total,
@@ -876,6 +869,8 @@ CREATE OR ALTER PROCEDURE sp_inserir_nota
 AS
 BEGIN
     SET NOCOUNT ON;
+    -- SET NOCOUNT ON necessário aqui: essa SP faz INSERT seguido de SELECT
+    -- sem ele o Python leria a mensagem "(1 linha afetada)" no lugar do SCOPE_IDENTITY()
     INSERT INTO NOTA_FISCAL (id_pedido,numero_nf,serie,chave_acesso)
     VALUES (@id_pedido,@numero_nf,@serie,@chave_acesso);
     -- retorna o id da nota gerada pra conseguir inserir os itens dela em seguida
@@ -890,7 +885,6 @@ CREATE OR ALTER PROCEDURE sp_deletar_nota
     @id_nf INT
 AS
 BEGIN
-    SET NOCOUNT ON;
     -- deleta os itens primeiro por causa da chave estrangeira
     -- sem isso o banco bloquearia a exclusão da nota
     DELETE FROM ITEM_NOTA   WHERE id_nf=@id_nf;
@@ -902,7 +896,6 @@ GO
 CREATE OR ALTER PROCEDURE sp_listar_notas
 AS
 BEGIN
-    SET NOCOUNT ON;
     -- traz o nome do cliente via dois JOINs: nota → pedido → empresa
     -- ordenado da emissão mais recente pra mais antiga
     SELECT n.id_nf,n.numero_nf,n.serie,n.dt_emissao,n.valor_total,
@@ -921,7 +914,6 @@ CREATE OR ALTER PROCEDURE sp_listar_itens_nota
     @id_nf INT
 AS
 BEGIN
-    SET NOCOUNT ON;
     -- traz a descrição e o sku do produto via JOIN pra não retornar só o id
     SELECT it.id_nf,it.id_produto,it.quantidade,it.preco_unitario,
            p.descricao AS produto, p.codigo_sku
@@ -942,7 +934,6 @@ CREATE OR ALTER PROCEDURE sp_inserir_funcionario
     @cargo VARCHAR(60), @salario DECIMAL(10,2), @dt_admissao DATE
 AS
 BEGIN
-    SET NOCOUNT ON;
     -- cpf tem UNIQUE então o banco rejeita duplicado automaticamente
     INSERT INTO FUNCIONARIO (id_filial,nome,cpf,cargo,salario,dt_admissao)
     VALUES (@id_filial,@nome,@cpf,@cargo,@salario,@dt_admissao);
@@ -957,7 +948,6 @@ CREATE OR ALTER PROCEDURE sp_atualizar_funcionario
     @cargo VARCHAR(60), @salario DECIMAL(10,2), @ativo BIT = 1
 AS
 BEGIN
-    SET NOCOUNT ON;
     -- ativo=1 permite reativar um funcionário que tinha sido desativado
     -- o WHERE garante que só o funcionário com esse id seja alterado
     UPDATE FUNCIONARIO SET nome=@nome, cargo=@cargo, salario=@salario, ativo=@ativo
@@ -969,7 +959,6 @@ GO
 CREATE OR ALTER PROCEDURE sp_listar_funcionarios
 AS
 BEGIN
-    SET NOCOUNT ON;
     -- traz o nome da filial via JOIN pra não retornar só o id
     -- ordenado por nome pra facilitar a busca na tela
     SELECT f.id_funcionario,f.nome,f.cpf,f.cargo,f.salario,
@@ -992,7 +981,6 @@ CREATE OR ALTER PROCEDURE sp_inserir_filial
     @cep CHAR(8), @cidade VARCHAR(80), @estado CHAR(2)
 AS
 BEGIN
-    SET NOCOUNT ON;
     -- insere uma nova filial com endereço e dados principais
     INSERT INTO FILIAL (nome,cnpj,telefone,dt_inauguracao,logradouro,bairro,cep,cidade,estado)
     VALUES (@nome,@cnpj,@telefone,@dt_inauguracao,@logradouro,@bairro,@cep,@cidade,@estado);
@@ -1008,7 +996,6 @@ CREATE OR ALTER PROCEDURE sp_atualizar_filial
     @cep CHAR(8), @cidade VARCHAR(80), @estado CHAR(2), @ativo BIT = 1
 AS
 BEGIN
-    SET NOCOUNT ON;
     -- atualiza os dados cadastrais e o status ativo/inativo da filial
     UPDATE FILIAL SET nome=@nome, cnpj=@cnpj, telefone=@telefone,
         dt_inauguracao=@dt_inauguracao, logradouro=@logradouro,
@@ -1030,7 +1017,6 @@ CREATE OR ALTER PROCEDURE sp_inserir_veiculo
     @capacidade_kg DECIMAL(8,2) = NULL
 AS
 BEGIN
-    SET NOCOUNT ON;
     -- insere o veículo como ativo por padrão
     INSERT INTO VEICULO (id_filial,placa,modelo,marca,ano,capacidade_kg)
     VALUES (@id_filial,@placa,@modelo,@marca,@ano,@capacidade_kg);
@@ -1046,7 +1032,6 @@ CREATE OR ALTER PROCEDURE sp_atualizar_veiculo
     @capacidade_kg DECIMAL(8,2) = NULL, @ativo BIT = 1
 AS
 BEGIN
-    SET NOCOUNT ON;
     -- atualiza os dados do veículo e sua filial responsável
     UPDATE VEICULO SET id_filial=@id_filial, placa=@placa, modelo=@modelo,
         marca=@marca, ano=@ano, capacidade_kg=@capacidade_kg, ativo=@ativo
@@ -1058,7 +1043,6 @@ GO
 CREATE OR ALTER PROCEDURE sp_listar_veiculos
 AS
 BEGIN
-    SET NOCOUNT ON;
     -- traz o nome da filial via JOIN para facilitar a visualização na aplicação
     -- também serve para popular o dropdown de veículos na tela de entregas
     SELECT v.id_veiculo,v.id_filial,f.nome AS filial,v.placa,
@@ -1082,7 +1066,6 @@ CREATE OR ALTER PROCEDURE sp_inserir_entrega
     @status VARCHAR(15) = 'PENDENTE', @observacao VARCHAR(300) = NULL
 AS
 BEGIN
-    SET NOCOUNT ON;
     -- insere uma nova entrega ligada ao pedido, ao motorista e ao veículo
     INSERT INTO ENTREGA (id_pedido,id_funcionario,id_veiculo,dt_saida,dt_chegada,status,observacao)
     VALUES (@id_pedido,@id_funcionario,@id_veiculo,@dt_saida,@dt_chegada,@status,@observacao);
@@ -1098,7 +1081,6 @@ CREATE OR ALTER PROCEDURE sp_atualizar_entrega
     @status VARCHAR(15), @observacao VARCHAR(300) = NULL
 AS
 BEGIN
-    SET NOCOUNT ON;
     -- atualiza a entrega mantendo o mesmo registro e seu histórico de identificação
     UPDATE ENTREGA SET id_pedido=@id_pedido, id_funcionario=@id_funcionario,
         id_veiculo=@id_veiculo, dt_saida=@dt_saida, dt_chegada=@dt_chegada,
@@ -1111,7 +1093,6 @@ GO
 CREATE OR ALTER PROCEDURE sp_listar_entregas
 AS
 BEGIN
-    SET NOCOUNT ON;
     -- traz cliente, motorista e veículo via JOIN para não retornar apenas ids
     -- ordenado pela saída mais recente primeiro
     SELECT e.id_entrega,e.id_pedido,emp.razao_social AS cliente,
@@ -1134,7 +1115,6 @@ GO
 CREATE OR ALTER PROCEDURE sp_listar_estoque
 AS
 BEGIN
-    SET NOCOUNT ON;
     -- traz produto e filial via JOIN pra não retornar só ids
     -- a aplicação usa estoque_minimo pra destacar produtos com quantidade baixa
     SELECT e.id_produto,e.id_filial,e.quantidade,e.estoque_minimo,
@@ -1150,7 +1130,6 @@ GO
 CREATE OR ALTER PROCEDURE sp_listar_categorias
 AS
 BEGIN
-    SET NOCOUNT ON;
     -- usada pra popular o dropdown de categorias na tela de produtos
     -- retorna só id e nome pra não carregar dados desnecessários
     SELECT id_categoria, nome FROM CATEGORIA ORDER BY nome;
@@ -1161,7 +1140,6 @@ GO
 CREATE OR ALTER PROCEDURE sp_listar_filiais
 AS
 BEGIN
-    SET NOCOUNT ON;
     -- usada para listar filiais no CRUD e também popular dropdowns da aplicação
     -- retorna todos os campos principais da filial
     SELECT id_filial,nome,cnpj,telefone,dt_inauguracao,
