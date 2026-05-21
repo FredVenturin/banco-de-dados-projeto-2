@@ -436,7 +436,6 @@ tr:hover td { background: #fafafa; }
   </div>
 </div>
 
-
 <!-- ═══ MODAL ENTREGA ══════════════════════════════════════════ -->
 <div id="m-ent" class="overlay">
   <div class="modal">
@@ -503,7 +502,6 @@ tr:hover td { background: #fafafa; }
 
 <div id="toast"></div>
 
-<!-- ═══════════════════════════════════════════════════════════ -->
 <script>
 // ── Utilitários ──────────────────────────────────────────────
 const $ = id => document.getElementById(id);
@@ -523,7 +521,6 @@ function toast(msg) {
 function fechar(id) { $(id).classList.remove('on'); }
 function abrir(id)  { $(id).classList.add('on'); }
 
-// fecha modal ao clicar fora
 document.querySelectorAll('.overlay').forEach(el =>
   el.addEventListener('click', e => { if(e.target===el) el.classList.remove('on'); })
 );
@@ -682,7 +679,7 @@ async function editarProd(id) {
   const p = await api('/api/produtos/'+id);
   $('p-id').value=p.id_produto; $('m-prod-titulo').textContent='Editar Produto';
   $('p-desc').value=p.descricao; $('p-sku').value=p.codigo_sku;
-  $('p-unid').value=p.unidade_medida; $('p-cat').value=p.id_categoria;
+  $('p-unid').value=p.unidade_medida; $('p-cat').value=p.fk_categoria;
   $('p-custo').value=p.preco_custo; $('p-venda').value=p.preco_venda;
   $('p-peso').value=p.peso_kg||'';
 }
@@ -692,7 +689,7 @@ async function salvarProd() {
     return toast('⚠ Preço de venda deve ser maior que o custo.');
   const d = {
     descricao:e($('p-desc')), codigo_sku:e($('p-sku')),
-    unidade_medida:$('p-unid').value, id_categoria:$('p-cat').value,
+    unidade_medida:$('p-unid').value, fk_categoria:$('p-cat').value,
     preco_custo:$('p-custo').value, preco_venda:$('p-venda').value,
     peso_kg:$('p-peso').value||null, ativo:1,
   };
@@ -742,14 +739,14 @@ async function editarPed(id) {
   await abrirPed();
   const p = await api('/api/pedidos/'+id);
   $('ped-id').value=p.id_pedido; $('m-ped-titulo').textContent='Editar Pedido';
-  $('ped-cli').value=p.id_empresa; $('ped-fil').value=p.id_filial;
+  $('ped-cli').value=p.fk_empresa; $('ped-fil').value=p.fk_filial;
   $('ped-status').value=p.status; $('ped-obs').value=p.observacao||'';
   if (p.dt_prevista_entrega) $('ped-prev').value=p.dt_prevista_entrega.substring(0,10);
 }
 
 async function salvarPed() {
   const d = {
-    id_empresa:$('ped-cli').value, id_filial:$('ped-fil').value,
+    fk_empresa:$('ped-cli').value, fk_filial:$('ped-fil').value,
     status:$('ped-status').value, dt_prevista_entrega:$('ped-prev').value||null,
     observacao:$('ped-obs').value,
   };
@@ -776,7 +773,7 @@ async function carregarNotas() {
     ['NF','Série','Pedido','Cliente','Emissão','Total','Ações'],
     lista.map(n=>`<tr>
       <td><strong>${n.numero_nf}</strong></td><td>${n.serie}</td>
-      <td>#${n.id_pedido}</td><td>${n.cliente}</td>
+      <td>#${n.fk_pedido}</td><td>${n.cliente}</td>
       <td>${dt(n.dt_emissao)}</td><td>${brl(n.valor_total)}</td>
       <td>
         <button class="btn bs bp" onclick="verItens(${n.id_nf},'${n.numero_nf}')">Itens</button>
@@ -810,11 +807,11 @@ function addItemNF() {
 async function salvarNF() {
   const itens = [...$('nf-itens').children].map(r=>{
     const [sel,qtd,preco] = r.querySelectorAll('select,input');
-    return {id_produto:sel.value, quantidade:qtd.value, preco_unitario:preco.value};
+    return {fk_produto:sel.value, quantidade:qtd.value, preco_unitario:preco.value};
   }).filter(it=>it.quantidade&&it.preco_unitario);
   if (!itens.length) return toast('⚠ Adicione pelo menos um produto.');
   if (!$('nf-num').value) return toast('⚠ Informe o número da NF.');
-  const d = {id_pedido:$('nf-ped').value, numero_nf:$('nf-num').value,
+  const d = {fk_pedido:$('nf-ped').value, numero_nf:$('nf-num').value,
               serie:$('nf-serie').value, itens};
   await api('/api/notas', {method:'POST', body:JSON.stringify(d)});
   fechar('m-nf'); carregarNotas(); toast('✅ Nota Fiscal emitida!');
@@ -868,13 +865,13 @@ async function editarFunc(id) {
   $('f-id').value=f.id_funcionario; $('m-func-titulo').textContent='Editar Funcionário';
   $('f-nome').value=f.nome; $('f-cpf').value=f.cpf;
   $('f-cargo').value=f.cargo; $('f-sal').value=f.salario;
-  $('f-fil').value=f.id_filial;
+  $('f-fil').value=f.fk_filial;
   if (f.dt_admissao) $('f-adm').value=f.dt_admissao.substring(0,10);
 }
 
 async function salvarFunc() {
   const d = {
-    id_filial:$('f-fil').value, nome:e($('f-nome')), cpf:e($('f-cpf')),
+    fk_filial:$('f-fil').value, nome:e($('f-nome')), cpf:e($('f-cpf')),
     cargo:e($('f-cargo')), salario:$('f-sal').value, dt_admissao:$('f-adm').value, ativo:1,
   };
   if (!d.nome||!d.cpf) return toast('⚠ Preencha os campos obrigatórios.');
@@ -922,10 +919,6 @@ async function checkDB() {
   } catch { $('db-badge').textContent='❌ Sem conexão'; $('db-badge').className='err'; }
 }
 
-// ── Inicialização ────────────────────────────────────────────
-
-
-
 // ═════════════════════════════════════════════════════════════
 // ENTREGAS
 // ═════════════════════════════════════════════════════════════
@@ -934,7 +927,7 @@ async function carregarEntregas() {
   tabela("t-ent",
     ["ID","Pedido","Motorista","Placa","Saída","Chegada","Status","Ações"],
     lista.map(en=>`<tr>
-      <td>${en.id_entrega}</td><td>#${en.id_pedido}</td>
+      <td>${en.id_entrega}</td><td>#${en.fk_pedido}</td>
       <td>${en.motorista}</td><td>${en.placa}</td>
       <td>${dt(en.dt_saida)}</td><td>${dt(en.dt_chegada)}</td>
       <td><span class="badge ${statusCor[en.status]||"gr"}">${en.status}</span></td>
@@ -958,15 +951,15 @@ async function editarEnt(id) {
   await abrirEnt();
   const en = await api("/api/entregas/"+id);
   $("ent-id").value=en.id_entrega; $("m-ent-titulo").textContent="Editar Entrega";
-  $("ent-ped").value=en.id_pedido; $("ent-func").value=en.id_funcionario; $("ent-vei").value=en.id_veiculo;
+  $("ent-ped").value=en.fk_pedido; $("ent-func").value=en.fk_funcionario; $("ent-vei").value=en.fk_veiculo;
   $("ent-saida").value=dtLocal(en.dt_saida); $("ent-chegada").value=dtLocal(en.dt_chegada);
   $("ent-status").value=en.status; $("ent-obs").value=en.observacao||"";
 }
 async function salvarEnt() {
   const d = {
-    id_pedido:$("ent-ped").value,
-    id_funcionario:$("ent-func").value,
-    id_veiculo:$("ent-vei").value,
+    fk_pedido:$("ent-ped").value,
+    fk_funcionario:$("ent-func").value,
+    fk_veiculo:$("ent-vei").value,
     dt_saida:$("ent-saida").value,
     dt_chegada:$("ent-chegada").value||null,
     status:$("ent-status").value,
@@ -1011,12 +1004,12 @@ async function editarVei(id) {
   $("v-id").value=v.id_veiculo; $("m-vei-titulo").textContent="Editar Veículo";
   $("v-placa").value=v.placa; $("v-modelo").value=v.modelo;
   $("v-marca").value=v.marca||""; $("v-ano").value=v.ano||"";
-  $("v-cap").value=v.capacidade_kg||""; $("v-fil").value=v.id_filial;
+  $("v-cap").value=v.capacidade_kg||""; $("v-fil").value=v.fk_filial;
 }
 async function salvarVei() {
   const id = $("v-id").value;
   const d = {
-    id_filial:$("v-fil").value,
+    fk_filial:$("v-fil").value,
     placa:$("v-placa").value.toUpperCase(),
     modelo:$("v-modelo").value,
     marca:$("v-marca").value||null,

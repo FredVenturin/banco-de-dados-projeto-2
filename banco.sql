@@ -14,7 +14,7 @@
 --
 --  PRIMARY KEY
 --    Identifica cada linha de forma única na tabela.
---    Pode ser um campo só (id_filial) ou dois campos juntos (id_pedido + id_produto).
+--    Pode ser um campo só (fk_filial) ou dois campos juntos (fk_pedido + fk_produto).
 --
 --  FOREIGN KEY ... REFERENCES
 --    Liga uma tabela a outra. Garante que não existam registros "soltos"
@@ -146,7 +146,7 @@ GO
 -- ============================================================
 CREATE TABLE FUNCIONARIO (
     id_funcionario INT IDENTITY(1,1) PRIMARY KEY,
-    id_filial      INT           NOT NULL,
+    fk_filial      INT           NOT NULL,
     nome           VARCHAR(100)  NOT NULL,
     cpf            CHAR(11)      NOT NULL UNIQUE,
     cargo          VARCHAR(60)   NOT NULL,
@@ -154,7 +154,7 @@ CREATE TABLE FUNCIONARIO (
     dt_admissao    DATE          NOT NULL,
     dt_demissao    DATE          NULL,
     ativo          BIT           NOT NULL DEFAULT 1,
-    CONSTRAINT FK_FUNC_FILIAL FOREIGN KEY (id_filial) REFERENCES FILIAL(id_filial),
+    CONSTRAINT FK_FUNC_FILIAL FOREIGN KEY (fk_filial) REFERENCES FILIAL(id_filial),
     CONSTRAINT CK_FUNCIONARIO_SALARIO CHECK (salario > 0)
 );
 GO
@@ -174,7 +174,7 @@ GO
 -- ============================================================
 CREATE TABLE PRODUTO (
     id_produto     INT IDENTITY(1,1) PRIMARY KEY,
-    id_categoria   INT           NOT NULL,
+    fk_categoria   INT           NOT NULL,
     codigo_sku     VARCHAR(30)   NOT NULL UNIQUE,
     descricao      VARCHAR(150)  NOT NULL,
     unidade_medida VARCHAR(20)   NOT NULL,
@@ -182,7 +182,7 @@ CREATE TABLE PRODUTO (
     preco_venda    DECIMAL(10,2) NOT NULL,
     peso_kg        DECIMAL(8,3)  NULL,
     ativo          BIT           NOT NULL DEFAULT 1,
-    CONSTRAINT FK_PROD_CAT FOREIGN KEY (id_categoria) REFERENCES CATEGORIA(id_categoria),
+    CONSTRAINT FK_PROD_CAT FOREIGN KEY (fk_categoria) REFERENCES CATEGORIA(id_categoria),
     CONSTRAINT CK_PRODUTO_PRECO_CUSTO CHECK (preco_custo > 0),
     CONSTRAINT CK_PRODUTO_PRECO_VENDA CHECK (preco_venda > preco_custo)
 );
@@ -208,7 +208,9 @@ CREATE TABLE EMPRESA (
     bairro              VARCHAR(100)  NOT NULL,
     cep                 CHAR(8)       NOT NULL,
     cidade              VARCHAR(80)   NOT NULL,
-    estado              CHAR(2)       NOT NULL
+    estado              CHAR(2)       NOT NULL,
+    -- pelo menos um dos dois papéis deve estar ativo
+    CONSTRAINT CK_EMPRESA_PAPEL CHECK (is_cliente = 1 OR is_fornecedor = 1)
 );
 GO
 
@@ -216,14 +218,14 @@ GO
 -- FORNECE  
 -- ============================================================
 CREATE TABLE FORNECE (
-    id_empresa         INT           NOT NULL,
-    id_produto         INT           NOT NULL,
+    fk_empresa         INT           NOT NULL,
+    fk_produto         INT           NOT NULL,
     preco_negociado    DECIMAL(10,2) NOT NULL,
     prazo_entrega_dias INT           NULL,
     dt_ultima_entrega  DATE          NULL,
-    CONSTRAINT PK_FORNECE     PRIMARY KEY (id_empresa, id_produto),
-    CONSTRAINT FK_FORN_EMP    FOREIGN KEY (id_empresa) REFERENCES EMPRESA(id_empresa),
-    CONSTRAINT FK_FORN_PROD   FOREIGN KEY (id_produto) REFERENCES PRODUTO(id_produto),
+    CONSTRAINT PK_FORNECE     PRIMARY KEY (fk_empresa, fk_produto),
+    CONSTRAINT FK_FORN_EMP    FOREIGN KEY (fk_empresa) REFERENCES EMPRESA(id_empresa),
+    CONSTRAINT FK_FORN_PROD   FOREIGN KEY (fk_produto) REFERENCES PRODUTO(id_produto),
     CONSTRAINT CK_FORNECE_PRECO_NEGOCIADO CHECK (preco_negociado > 0)
 );
 GO
@@ -233,15 +235,15 @@ GO
 -- ============================================================
 CREATE TABLE PEDIDO (
     id_pedido           INT IDENTITY(1,1) PRIMARY KEY,
-    id_empresa          INT           NOT NULL,
-    id_filial           INT           NOT NULL,
+    fk_empresa          INT           NOT NULL,
+    fk_filial           INT           NOT NULL,
     dt_pedido           DATETIME      NOT NULL DEFAULT GETDATE(),
     dt_prevista_entrega DATE          NULL,
     status              VARCHAR(15)   NOT NULL DEFAULT 'AGUARDANDO',
     observacao          VARCHAR(300)  NULL,
     valor_total         DECIMAL(12,2) NULL,
-    CONSTRAINT FK_PED_EMP    FOREIGN KEY (id_empresa) REFERENCES EMPRESA(id_empresa),
-    CONSTRAINT FK_PED_FILIAL FOREIGN KEY (id_filial)  REFERENCES FILIAL(id_filial),
+    CONSTRAINT FK_PED_EMP    FOREIGN KEY (fk_empresa) REFERENCES EMPRESA(id_empresa),
+    CONSTRAINT FK_PED_FILIAL FOREIGN KEY (fk_filial)  REFERENCES FILIAL(id_filial),
     CONSTRAINT CK_PEDIDO_STATUS CHECK (status IN ('AGUARDANDO','APROVADO','ENTREGUE','CANCELADO'))
 );
 GO
@@ -250,14 +252,14 @@ GO
 -- ITEM_PEDIDO  (N:M — PEDIDO × PRODUTO)
 -- ============================================================
 CREATE TABLE ITEM_PEDIDO (
-    id_pedido      INT           NOT NULL,
-    id_produto     INT           NOT NULL,
+    fk_pedido      INT           NOT NULL,
+    fk_produto     INT           NOT NULL,
     quantidade     INT           NOT NULL,
     preco_unitario DECIMAL(10,2) NOT NULL,
     desconto_pct   DECIMAL(5,2)  NULL DEFAULT 0,  
-    CONSTRAINT PK_ITEM_PED  PRIMARY KEY (id_pedido, id_produto),
-    CONSTRAINT FK_ITEM_PED  FOREIGN KEY (id_pedido)  REFERENCES PEDIDO(id_pedido),
-    CONSTRAINT FK_ITEM_PROD FOREIGN KEY (id_produto) REFERENCES PRODUTO(id_produto),
+    CONSTRAINT PK_ITEM_PED  PRIMARY KEY (fk_pedido, fk_produto),
+    CONSTRAINT FK_ITEM_PED  FOREIGN KEY (fk_pedido)  REFERENCES PEDIDO(id_pedido),
+    CONSTRAINT FK_ITEM_PROD FOREIGN KEY (fk_produto) REFERENCES PRODUTO(id_produto),
     CONSTRAINT CK_ITEM_PEDIDO_QUANTIDADE CHECK (quantidade > 0),
     CONSTRAINT CK_ITEM_PEDIDO_PRECO CHECK (preco_unitario > 0),
     CONSTRAINT CK_ITEM_PEDIDO_DESCONTO CHECK (desconto_pct >= 0 AND desconto_pct <= 100)
@@ -271,13 +273,13 @@ GO
 -- ============================================================
 CREATE TABLE NOTA_FISCAL (
     id_nf        INT IDENTITY(1,1) PRIMARY KEY,
-    id_pedido    INT          NOT NULL,          -- N:1 portanto SEM UNIQUE
+    fk_pedido    INT          NOT NULL,          -- N:1 portanto SEM UNIQUE
     numero_nf    VARCHAR(20)  NOT NULL UNIQUE,
     serie        CHAR(3)      NOT NULL DEFAULT '001',
     dt_emissao   DATETIME     NOT NULL DEFAULT GETDATE(),
     chave_acesso CHAR(44)     NULL,
     valor_total  DECIMAL(12,2) NULL,
-    CONSTRAINT FK_NF_PEDIDO FOREIGN KEY (id_pedido) REFERENCES PEDIDO(id_pedido)
+    CONSTRAINT FK_NF_PEDIDO FOREIGN KEY (fk_pedido) REFERENCES PEDIDO(id_pedido)
 );
 GO
 
@@ -286,14 +288,14 @@ GO
 -- Indica exatamente quais produtos cada nota cobre.
 -- ============================================================
 CREATE TABLE ITEM_NOTA (
-    id_nf          INT           NOT NULL,
-    id_produto     INT           NOT NULL,
+    fk_nf          INT           NOT NULL,
+    fk_produto     INT           NOT NULL,
     quantidade     INT           NOT NULL,
     preco_unitario DECIMAL(10,2) NOT NULL,
     desconto_pct   DECIMAL(5,2)  NULL DEFAULT 0,
-    CONSTRAINT PK_ITEM_NOTA     PRIMARY KEY (id_nf, id_produto),
-    CONSTRAINT FK_INOTA_NF      FOREIGN KEY (id_nf)      REFERENCES NOTA_FISCAL(id_nf),
-    CONSTRAINT FK_INOTA_PROD    FOREIGN KEY (id_produto) REFERENCES PRODUTO(id_produto),
+    CONSTRAINT PK_ITEM_NOTA     PRIMARY KEY (fk_nf, fk_produto),
+    CONSTRAINT FK_INOTA_NF      FOREIGN KEY (fk_nf)      REFERENCES NOTA_FISCAL(id_nf),
+    CONSTRAINT FK_INOTA_PROD    FOREIGN KEY (fk_produto) REFERENCES PRODUTO(id_produto),
     CONSTRAINT CK_ITEM_NOTA_QUANTIDADE CHECK (quantidade > 0),
     CONSTRAINT CK_ITEM_NOTA_PRECO      CHECK (preco_unitario > 0),
     CONSTRAINT CK_ITEM_NOTA_DESCONTO   CHECK (desconto_pct >= 0 AND desconto_pct <= 100)
@@ -305,14 +307,14 @@ GO
 -- ============================================================
 CREATE TABLE VEICULO (
     id_veiculo    INT IDENTITY(1,1) PRIMARY KEY,
-    id_filial     INT          NOT NULL,
+    fk_filial     INT          NOT NULL,
     placa         VARCHAR(8)   NOT NULL UNIQUE,
     modelo        VARCHAR(60)  NOT NULL,
     marca         VARCHAR(40)  NULL,
     ano           SMALLINT     NULL,
     capacidade_kg DECIMAL(8,2) NULL,
     ativo         BIT          NOT NULL DEFAULT 1,
-    CONSTRAINT FK_VEI_FILIAL FOREIGN KEY (id_filial) REFERENCES FILIAL(id_filial),
+    CONSTRAINT FK_VEI_FILIAL FOREIGN KEY (fk_filial) REFERENCES FILIAL(id_filial),
     CONSTRAINT CK_VEICULO_CAPACIDADE CHECK (capacidade_kg IS NULL OR capacidade_kg > 0)
 );
 GO
@@ -322,16 +324,16 @@ GO
 -- ============================================================
 CREATE TABLE ENTREGA (
     id_entrega     INT IDENTITY(1,1) PRIMARY KEY,
-    id_pedido      INT          NOT NULL,
-    id_funcionario INT          NOT NULL,
-    id_veiculo     INT          NOT NULL,
+    fk_pedido      INT          NOT NULL,
+    fk_funcionario INT          NOT NULL,
+    fk_veiculo     INT          NOT NULL,
     dt_saida       DATETIME     NOT NULL,
     dt_chegada     DATETIME     NULL,
     status         VARCHAR(15)  NOT NULL DEFAULT 'PENDENTE',
     observacao     VARCHAR(300) NULL,
-    CONSTRAINT FK_ENT_PED  FOREIGN KEY (id_pedido)      REFERENCES PEDIDO(id_pedido),
-    CONSTRAINT FK_ENT_FUNC FOREIGN KEY (id_funcionario) REFERENCES FUNCIONARIO(id_funcionario),
-    CONSTRAINT FK_ENT_VEI  FOREIGN KEY (id_veiculo)     REFERENCES VEICULO(id_veiculo),
+    CONSTRAINT FK_ENT_PED  FOREIGN KEY (fk_pedido)      REFERENCES PEDIDO(id_pedido),
+    CONSTRAINT FK_ENT_FUNC FOREIGN KEY (fk_funcionario) REFERENCES FUNCIONARIO(id_funcionario),
+    CONSTRAINT FK_ENT_VEI  FOREIGN KEY (fk_veiculo)     REFERENCES VEICULO(id_veiculo),
     CONSTRAINT CK_ENTREGA_STATUS CHECK (status IN ('PENDENTE','EM_ROTA','ENTREGUE','CANCELADA')),
     CONSTRAINT CK_ENTREGA_DATAS CHECK (dt_chegada IS NULL OR dt_chegada >= dt_saida)
 );
@@ -341,14 +343,14 @@ GO
 -- ESTOQUE  (N:M — PRODUTO × FILIAL)
 -- ============================================================
 CREATE TABLE ESTOQUE (
-    id_produto     INT      NOT NULL,
-    id_filial      INT      NOT NULL,
+    fk_produto     INT      NOT NULL,
+    fk_filial      INT      NOT NULL,
     quantidade     INT      NOT NULL DEFAULT 0,
     estoque_minimo INT      NOT NULL DEFAULT 0,
     dt_atualizacao DATETIME NOT NULL DEFAULT GETDATE(),
-    CONSTRAINT PK_ESTOQUE    PRIMARY KEY (id_produto, id_filial),
-    CONSTRAINT FK_EST_PROD   FOREIGN KEY (id_produto) REFERENCES PRODUTO(id_produto),
-    CONSTRAINT FK_EST_FILIAL FOREIGN KEY (id_filial)  REFERENCES FILIAL(id_filial),
+    CONSTRAINT PK_ESTOQUE    PRIMARY KEY (fk_produto, fk_filial),
+    CONSTRAINT FK_EST_PROD   FOREIGN KEY (fk_produto) REFERENCES PRODUTO(id_produto),
+    CONSTRAINT FK_EST_FILIAL FOREIGN KEY (fk_filial)  REFERENCES FILIAL(id_filial),
     CONSTRAINT CK_ESTOQUE_QUANTIDADE CHECK (quantidade >= 0),
     CONSTRAINT CK_ESTOQUE_MINIMO CHECK (estoque_minimo >= 0)
 );
@@ -359,16 +361,16 @@ GO
 -- ============================================================
 CREATE TABLE MOVIMENTACAO (
     id_movimentacao INT IDENTITY(1,1) PRIMARY KEY,
-    id_produto      INT           NOT NULL,
-    id_filial       INT           NOT NULL,
-    id_funcionario  INT           NOT NULL,
+    fk_produto      INT           NOT NULL,
+    fk_filial       INT           NOT NULL,
+    fk_funcionario  INT           NOT NULL,
     tipo            VARCHAR(10)   NOT NULL,
     quantidade      INT           NOT NULL,
     motivo          VARCHAR(150)  NULL,
     dt_movimentacao DATETIME      NOT NULL DEFAULT GETDATE(),
-    CONSTRAINT FK_MOV_PROD  FOREIGN KEY (id_produto)     REFERENCES PRODUTO(id_produto),
-    CONSTRAINT FK_MOV_FILIAL FOREIGN KEY (id_filial)     REFERENCES FILIAL(id_filial),
-    CONSTRAINT FK_MOV_FUNC  FOREIGN KEY (id_funcionario) REFERENCES FUNCIONARIO(id_funcionario),
+    CONSTRAINT FK_MOV_PROD  FOREIGN KEY (fk_produto)     REFERENCES PRODUTO(id_produto),
+    CONSTRAINT FK_MOV_FILIAL FOREIGN KEY (fk_filial)     REFERENCES FILIAL(id_filial),
+    CONSTRAINT FK_MOV_FUNC  FOREIGN KEY (fk_funcionario) REFERENCES FUNCIONARIO(id_funcionario),
     CONSTRAINT CK_MOVIMENTACAO_TIPO CHECK (tipo IN ('ENTRADA','SAIDA')),
     CONSTRAINT CK_MOVIMENTACAO_QUANTIDADE CHECK (quantidade > 0)
 );
@@ -388,21 +390,21 @@ ON ITEM_PEDIDO AFTER INSERT, UPDATE, DELETE
 AS
 BEGIN
     -- tabela temporária pra guardar os ids dos pedidos afetados
-    DECLARE @ids TABLE (id_pedido INT);
+    DECLARE @ids TABLE (fk_pedido INT);
 
     -- captura os pedidos que foram inseridos ou atualizados
-    INSERT INTO @ids SELECT id_pedido FROM inserted;
+    INSERT INTO @ids SELECT fk_pedido FROM inserted;
 
     -- captura também os pedidos que tiveram itens deletados
-    INSERT INTO @ids SELECT id_pedido FROM deleted;
+    INSERT INTO @ids SELECT fk_pedido FROM deleted;
 
     -- recalcula o valor total somando quantidade × preço com o desconto percentual do item
     -- ISNULL para garantir que o desconto NULL vira 0 e que o total NULL se torna 0 
     UPDATE P SET P.valor_total = (
         SELECT ISNULL(SUM(ip.quantidade * ip.preco_unitario * (1 - ISNULL(ip.desconto_pct, 0) / 100.0)), 0)
-        FROM ITEM_PEDIDO ip WHERE ip.id_pedido = P.id_pedido
+        FROM ITEM_PEDIDO ip WHERE ip.fk_pedido = P.id_pedido
     )
-    FROM PEDIDO P INNER JOIN @ids I ON I.id_pedido = P.id_pedido;
+    FROM PEDIDO P INNER JOIN @ids I ON I.fk_pedido = P.id_pedido;
 END;
 GO
 
@@ -414,21 +416,21 @@ ON ITEM_NOTA AFTER INSERT, UPDATE, DELETE
 AS
 BEGIN
     -- tabela temporária pra guardar os ids das notas afetadas
-    DECLARE @ids TABLE (id_nf INT);
+    DECLARE @ids TABLE (fk_nf INT);
 
     -- captura as notas que foram inseridas ou atualizadas
-    INSERT INTO @ids SELECT id_nf FROM inserted;
+    INSERT INTO @ids SELECT fk_nf FROM inserted;
 
     -- captura também as notas que tiveram itens deletados
-    INSERT INTO @ids SELECT id_nf FROM deleted;
+    INSERT INTO @ids SELECT fk_nf FROM deleted;
 
     -- recalcula o valor total somando quantidade × preço com o desconto percentual do item
     -- ISNULL para garantir que o desconto NULL vira 0 e que o total NULL se torna 0
     UPDATE N SET N.valor_total = (
         SELECT ISNULL(SUM(it.quantidade * it.preco_unitario * (1 - ISNULL(it.desconto_pct, 0) / 100.0)), 0)
-        FROM ITEM_NOTA it WHERE it.id_nf = N.id_nf
+        FROM ITEM_NOTA it WHERE it.fk_nf = N.id_nf
     )
-    FROM NOTA_FISCAL N INNER JOIN @ids I ON I.id_nf = N.id_nf;
+    FROM NOTA_FISCAL N INNER JOIN @ids I ON I.fk_nf = N.id_nf;
 END;
 GO
 
@@ -439,14 +441,24 @@ CREATE OR ALTER TRIGGER trg_atualiza_estoque
 ON MOVIMENTACAO AFTER INSERT
 AS
 BEGIN
+    -- garante que exista um registro em ESTOQUE para cada combinação produto/filial
+    -- sem isso, movimentações de produto/filial sem registro prévio seriam silenciosamente ignoradas
+    INSERT INTO ESTOQUE (fk_produto, fk_filial, quantidade, estoque_minimo)
+    SELECT I.fk_produto, I.fk_filial, 0, 0
+    FROM inserted I
+    WHERE NOT EXISTS (
+        SELECT 1 FROM ESTOQUE E
+        WHERE E.fk_produto = I.fk_produto AND E.fk_filial = I.fk_filial
+    );
+
     -- se for entrada, soma a quantidade no estoque
     UPDATE E SET E.quantidade = E.quantidade + I.quantidade, E.dt_atualizacao = GETDATE()
-    FROM ESTOQUE E INNER JOIN inserted I ON I.id_produto = E.id_produto AND I.id_filial = E.id_filial
+    FROM ESTOQUE E INNER JOIN inserted I ON I.fk_produto = E.fk_produto AND I.fk_filial = E.fk_filial
     WHERE I.tipo = 'ENTRADA';
 
     -- se for saída, subtrai a quantidade do estoque
     UPDATE E SET E.quantidade = E.quantidade - I.quantidade, E.dt_atualizacao = GETDATE()
-    FROM ESTOQUE E INNER JOIN inserted I ON I.id_produto = E.id_produto AND I.id_filial = E.id_filial
+    FROM ESTOQUE E INNER JOIN inserted I ON I.fk_produto = E.fk_produto AND I.fk_filial = E.fk_filial
     WHERE I.tipo = 'SAIDA';
 END;
 GO
@@ -461,7 +473,7 @@ INSERT INTO FILIAL (nome,cnpj,telefone,dt_inauguracao,logradouro,bairro,cep,cida
 ('DistribuiMax - Cariacica', '12345678000434','(27) 3300-1004','2018-05-05','Rua das Acácias, 200',     'Centro','29140010','Cariacica','ES'),
 ('DistribuiMax - Linhares',  '12345678000515','(27) 3300-1005','2020-09-01','Rua Sete de Setembro, 780','Centro','29500010','Linhares','ES');
 
-INSERT INTO FUNCIONARIO (id_filial,nome,cpf,cargo,salario,dt_admissao) VALUES
+INSERT INTO FUNCIONARIO (fk_filial,nome,cpf,cargo,salario,dt_admissao) VALUES
 (1,'Carlos Eduardo Silva',  '11122233344','Gerente',            8500.00,'2010-03-15'),
 (1,'Ana Paula Ferreira',    '22233344455','Motorista',          3200.00,'2011-06-01'),
 (2,'Marcos Antônio Costa',  '33344455566','Gerente',            8500.00,'2012-07-20'),
@@ -478,7 +490,7 @@ INSERT INTO CATEGORIA (nome,descricao) VALUES
 ('Bebidas',           'Bebidas alcoólicas e não alcoólicas'),
 ('Frios e Laticínios','Queijos, frios, leites e derivados');
 
-INSERT INTO PRODUTO (id_categoria,codigo_sku,descricao,unidade_medida,preco_custo,preco_venda,peso_kg) VALUES
+INSERT INTO PRODUTO (fk_categoria,codigo_sku,descricao,unidade_medida,preco_custo,preco_venda,peso_kg) VALUES
 (1,'ALI-001','Arroz Tipo 1 5kg',       'PCT', 12.50,18.90,5.000),
 (1,'ALI-002','Feijão Carioca 1kg',      'PCT',  5.80, 9.50,1.000),
 (1,'ALI-003','Óleo de Soja 900ml',      'UND',  6.20, 9.90,0.900),
@@ -507,20 +519,20 @@ INSERT INTO EMPRESA (razao_social,cnpj,telefone,email,contato_responsavel,is_cli
 INSERT INTO EMPRESA (razao_social,cnpj,telefone,email,contato_responsavel,is_cliente,is_fornecedor,limite_credito,logradouro,bairro,cep,cidade,estado) VALUES
 ('Distribuidora Norte ES Ltda','55667788000105','(27) 3400-5000','contato@northes.com.br','Marcos Vinicius',1,1,15000.00,'Rua Sete de Setembro, 780','Centro','29500010','Linhares','ES');
 
-INSERT INTO FORNECE (id_empresa,id_produto,preco_negociado,prazo_entrega_dias,dt_ultima_entrega) VALUES
+INSERT INTO FORNECE (fk_empresa,fk_produto,preco_negociado,prazo_entrega_dias,dt_ultima_entrega) VALUES
 (5,1,11.00,3,'2026-04-10'),(5,2,5.00,3,'2026-04-10'),(5,3,5.50,5,'2026-03-28'),
 (6,4,1.20,7,'2026-04-05'),(6,5,6.50,7,'2026-04-05'),(6,6,1.80,5,'2026-04-01'),(6,7,2.70,5,'2026-04-01'),
 (7,8,4.00,2,'2026-04-15'),(7,9,4.50,2,'2026-04-15'),
 (8,1,12.00,4,'2026-04-08'),(8,8,4.20,3,'2026-04-08');
 
-INSERT INTO PEDIDO (id_empresa,id_filial,dt_pedido,dt_prevista_entrega,status) VALUES
+INSERT INTO PEDIDO (fk_empresa,fk_filial,dt_pedido,dt_prevista_entrega,status) VALUES
 (1,1,CONVERT(DATETIME,'2026-04-20 09:00',120),'2026-04-23','ENTREGUE'),
 (2,2,CONVERT(DATETIME,'2026-04-22 10:30',120),'2026-04-25','APROVADO'),
 (3,1,CONVERT(DATETIME,'2026-04-25 14:00',120),'2026-04-28','AGUARDANDO'),
 (4,3,CONVERT(DATETIME,'2026-05-01 08:00',120),'2026-05-05','APROVADO'),
 (8,4,CONVERT(DATETIME,'2026-05-05 11:00',120),'2026-05-08','AGUARDANDO');
 
-INSERT INTO ITEM_PEDIDO (id_pedido,id_produto,quantidade,preco_unitario,desconto_pct) VALUES
+INSERT INTO ITEM_PEDIDO (fk_pedido,fk_produto,quantidade,preco_unitario,desconto_pct) VALUES
 (1,1,100,18.90,0.00),(1,2,50,9.50,0.00),(1,6,200,4.50,5.00),
 (2,4,300,3.20,0.00),(2,5,150,13.50,0.00),(2,8,200,7.80,3.00),
 (3,3,80,9.90,0.00),(3,7,100,5.90,0.00),
@@ -528,28 +540,28 @@ INSERT INTO ITEM_PEDIDO (id_pedido,id_produto,quantidade,preco_unitario,desconto
 (5,8,120,7.80,0.00),(5,10,40,22.90,5.00);
 
 -- Pedido 1 gerou 2 notas (recebimento parcial)
-INSERT INTO NOTA_FISCAL (id_pedido,numero_nf,serie,dt_emissao) VALUES
+INSERT INTO NOTA_FISCAL (fk_pedido,numero_nf,serie,dt_emissao) VALUES
 (1,'NF-2026-00001','001',CONVERT(DATETIME,'2026-04-20 09:15',120)),
 (1,'NF-2026-00002','001',CONVERT(DATETIME,'2026-04-21 08:00',120)),
 (2,'NF-2026-00003','001',CONVERT(DATETIME,'2026-04-22 10:45',120));
 
-INSERT INTO ITEM_NOTA (id_nf,id_produto,quantidade,preco_unitario,desconto_pct) VALUES
+INSERT INTO ITEM_NOTA (fk_nf,fk_produto,quantidade,preco_unitario,desconto_pct) VALUES
 (1,1,100,18.90,0.00),(1,2,50,9.50,0.00),   -- NF1: arroz + feijão
 (2,6,200,4.50,5.00),                        -- NF2: detergente (faltou na 1ª entrega)
 (3,4,300,3.20,0.00),(3,5,150,13.50,0.00),(3,8,200,7.80,3.00);
 
-INSERT INTO VEICULO (id_filial,placa,modelo,marca,ano,capacidade_kg) VALUES
+INSERT INTO VEICULO (fk_filial,placa,modelo,marca,ano,capacidade_kg) VALUES
 (1,'QRS1234','Delivery 3/4','Fiat',    2021,4000.00),
 (1,'QRS5678','Sprinter',    'Mercedes',2020,3500.00),
 (2,'ABC9012','HR',          'Hyundai', 2022,3000.00),
 (3,'DEF3456','Delivery 3/4','Fiat',    2019,4000.00),
 (4,'GHI7890','Sprinter',    'Mercedes',2023,3500.00);
 
-INSERT INTO ENTREGA (id_pedido,id_funcionario,id_veiculo,dt_saida,dt_chegada,status) VALUES
+INSERT INTO ENTREGA (fk_pedido,fk_funcionario,fk_veiculo,dt_saida,dt_chegada,status) VALUES
 (1,2,1,CONVERT(DATETIME,'2026-04-23 07:00',120),CONVERT(DATETIME,'2026-04-23 14:30',120),'ENTREGUE'),
 (2,3,3,CONVERT(DATETIME,'2026-04-25 07:30',120),NULL,'EM_ROTA');
 
-INSERT INTO ESTOQUE (id_produto,id_filial,quantidade,estoque_minimo) VALUES
+INSERT INTO ESTOQUE (fk_produto,fk_filial,quantidade,estoque_minimo) VALUES
 (1,1,500,50),(1,2,300,30),(2,1,400,40),(2,2,200,20),
 (3,1,350,30),(3,3,150,20),(4,1,800,80),(4,2,600,60),
 (5,2,250,25),(5,4,180,20),(6,1,700,70),(6,3,400,40),
@@ -582,8 +594,8 @@ SELECT
     f.id_filial,
     f.nome AS filial
 FROM PEDIDO p
-JOIN EMPRESA e ON e.id_empresa = p.id_empresa
-JOIN FILIAL f ON f.id_filial = p.id_filial
+JOIN EMPRESA e ON e.id_empresa = p.fk_empresa
+JOIN FILIAL f ON f.id_filial = p.fk_filial
 WHERE e.is_cliente = 1;
 GO
 
@@ -594,9 +606,9 @@ CREATE OR ALTER VIEW vw_posicao_estoque_filial AS
 -- junta estoque, produto, categoria e filial para mostrar o saldo por unidade
 -- também indica se o estoque está abaixo do mínimo cadastrado
 SELECT
-    es.id_filial,
+    es.fk_filial,
     f.nome AS filial,
-    es.id_produto,
+    es.fk_produto,
     p.codigo_sku,
     p.descricao AS produto,
     c.nome AS categoria,
@@ -608,9 +620,9 @@ SELECT
         ELSE 'OK'
     END AS situacao_estoque
 FROM ESTOQUE es
-JOIN FILIAL f ON f.id_filial = es.id_filial
-JOIN PRODUTO p ON p.id_produto = es.id_produto
-JOIN CATEGORIA c ON c.id_categoria = p.id_categoria;
+JOIN FILIAL f ON f.id_filial = es.fk_filial
+JOIN PRODUTO p ON p.id_produto = es.fk_produto
+JOIN CATEGORIA c ON c.id_categoria = p.fk_categoria;
 GO
 
 -- ============================================================
@@ -631,9 +643,9 @@ SELECT
     f.prazo_entrega_dias,
     f.dt_ultima_entrega
 FROM FORNECE f
-JOIN EMPRESA e ON e.id_empresa = f.id_empresa
-JOIN PRODUTO p ON p.id_produto = f.id_produto
-JOIN CATEGORIA c ON c.id_categoria = p.id_categoria
+JOIN EMPRESA e ON e.id_empresa = f.fk_empresa
+JOIN PRODUTO p ON p.id_produto = f.fk_produto
+JOIN CATEGORIA c ON c.id_categoria = p.fk_categoria
 WHERE e.is_fornecedor = 1;
 GO
 
@@ -650,8 +662,8 @@ SELECT
     COUNT(n.id_nf) AS qtd_notas,
     SUM(ISNULL(n.valor_total, 0)) AS valor_faturado
 FROM NOTA_FISCAL n
-JOIN PEDIDO p ON p.id_pedido = n.id_pedido
-JOIN EMPRESA e ON e.id_empresa = p.id_empresa
+JOIN PEDIDO p ON p.id_pedido = n.fk_pedido
+JOIN EMPRESA e ON e.id_empresa = p.fk_empresa
 WHERE e.is_cliente = 1
 GROUP BY
     e.id_empresa,
@@ -667,7 +679,7 @@ CREATE OR ALTER VIEW vw_entregas_por_motorista_veiculo AS
 -- usada para acompanhar as entregas realizadas ou em andamento
 SELECT
     e.id_entrega,
-    e.id_pedido,
+    e.fk_pedido,
     emp.razao_social AS cliente,
     f.id_funcionario,
     f.nome AS motorista,
@@ -679,10 +691,10 @@ SELECT
     e.status,
     e.observacao
 FROM ENTREGA e
-JOIN PEDIDO p ON p.id_pedido = e.id_pedido
-JOIN EMPRESA emp ON emp.id_empresa = p.id_empresa
-JOIN FUNCIONARIO f ON f.id_funcionario = e.id_funcionario
-JOIN VEICULO v ON v.id_veiculo = e.id_veiculo;
+JOIN PEDIDO p ON p.id_pedido = e.fk_pedido
+JOIN EMPRESA emp ON emp.id_empresa = p.fk_empresa
+JOIN FUNCIONARIO f ON f.id_funcionario = e.fk_funcionario
+JOIN VEICULO v ON v.id_veiculo = e.fk_veiculo;
 GO
 
 
@@ -716,7 +728,7 @@ GO
 CREATE OR ALTER PROCEDURE sp_atualizar_empresa
     -- recebe o id pra saber qual empresa editar
     -- todos os campos são reescritos, então precisa mandar tudo mesmo que não mudou
-    @id_empresa INT, @razao_social VARCHAR(120), @cnpj CHAR(14),
+    @fk_empresa INT, @razao_social VARCHAR(120), @cnpj CHAR(14),
     @telefone VARCHAR(20) = NULL, @email VARCHAR(100) = NULL,
     @contato_responsavel VARCHAR(100) = NULL, @is_cliente BIT, @is_fornecedor BIT,
     @limite_credito DECIMAL(12,2) = 0, @logradouro VARCHAR(150),
@@ -730,7 +742,7 @@ BEGIN
         is_cliente=@is_cliente, is_fornecedor=@is_fornecedor,
         limite_credito=@limite_credito, logradouro=@logradouro, bairro=@bairro,
         cep=@cep, cidade=@cidade, estado=@estado, ativo=@ativo
-    WHERE id_empresa=@id_empresa;
+    WHERE id_empresa=@fk_empresa;
 END;
 GO
 
@@ -761,13 +773,13 @@ GO
 CREATE OR ALTER PROCEDURE sp_inserir_produto
     -- recebe os dados do produto e o id da categoria que ele pertence
     -- peso_kg é opcional, nem todo produto tem peso relevante
-    @id_categoria INT, @codigo_sku VARCHAR(30), @descricao VARCHAR(150),
+    @fk_categoria INT, @codigo_sku VARCHAR(30), @descricao VARCHAR(150),
     @unidade_medida VARCHAR(20), @preco_custo DECIMAL(10,2),
     @preco_venda DECIMAL(10,2), @peso_kg DECIMAL(8,3) = NULL
 AS
 BEGIN
-    INSERT INTO PRODUTO (id_categoria,codigo_sku,descricao,unidade_medida,preco_custo,preco_venda,peso_kg)
-    VALUES (@id_categoria,@codigo_sku,@descricao,@unidade_medida,@preco_custo,@preco_venda,@peso_kg);
+    INSERT INTO PRODUTO (fk_categoria,codigo_sku,descricao,unidade_medida,preco_custo,preco_venda,peso_kg)
+    VALUES (@fk_categoria,@codigo_sku,@descricao,@unidade_medida,@preco_custo,@preco_venda,@peso_kg);
 END;
 GO
 
@@ -775,7 +787,7 @@ GO
 CREATE OR ALTER PROCEDURE sp_atualizar_produto
     -- recebe o id do produto e todos os campos editáveis
     -- ativo permite reativar um produto que estava desativado
-    @id_produto INT, @id_categoria INT, @codigo_sku VARCHAR(30),
+    @fk_produto INT, @fk_categoria INT, @codigo_sku VARCHAR(30),
     @descricao VARCHAR(150), @unidade_medida VARCHAR(20),
     @preco_custo DECIMAL(10,2), @preco_venda DECIMAL(10,2),
     @peso_kg DECIMAL(8,3) = NULL, @ativo BIT = 1
@@ -783,11 +795,11 @@ AS
 BEGIN
     -- atualiza todos os campos do produto de uma vez
     -- o WHERE garante que só o produto com esse id seja alterado
-    UPDATE PRODUTO SET id_categoria=@id_categoria, codigo_sku=@codigo_sku,
+    UPDATE PRODUTO SET fk_categoria=@fk_categoria, codigo_sku=@codigo_sku,
         descricao=@descricao, unidade_medida=@unidade_medida,
         preco_custo=@preco_custo, preco_venda=@preco_venda,
         peso_kg=@peso_kg, ativo=@ativo
-    WHERE id_produto=@id_produto;
+    WHERE id_produto=@fk_produto;
 END;
 GO
 
@@ -798,9 +810,9 @@ BEGIN
     -- traz o nome da categoria via JOIN pra não retornar só o id
     -- ordenado por descrição pra facilitar a busca na tela
     SELECT p.id_produto,p.codigo_sku,p.descricao,p.unidade_medida,
-           p.preco_custo,p.preco_venda,p.peso_kg,p.ativo,p.id_categoria,
+           p.preco_custo,p.preco_venda,p.peso_kg,p.ativo,p.fk_categoria,
            c.nome AS categoria
-    FROM PRODUTO p JOIN CATEGORIA c ON c.id_categoria=p.id_categoria
+    FROM PRODUTO p JOIN CATEGORIA c ON c.id_categoria=p.fk_categoria
     ORDER BY p.descricao;
 END;
 GO
@@ -813,14 +825,14 @@ GO
 CREATE OR ALTER PROCEDURE sp_inserir_pedido
     -- recebe o id da empresa cliente e da filial responsável pelo pedido
     -- status e data de entrega são opcionais na criação
-    @id_empresa INT, @id_filial INT,
+    @fk_empresa INT, @fk_filial INT,
     @dt_prevista_entrega DATE = NULL,
     @status VARCHAR(15) = 'AGUARDANDO',
     @observacao VARCHAR(300) = NULL
 AS
 BEGIN
-    INSERT INTO PEDIDO (id_empresa,id_filial,dt_prevista_entrega,status,observacao)
-    VALUES (@id_empresa,@id_filial,@dt_prevista_entrega,@status,@observacao);
+    INSERT INTO PEDIDO (fk_empresa,fk_filial,dt_prevista_entrega,status,observacao)
+    VALUES (@fk_empresa,@fk_filial,@dt_prevista_entrega,@status,@observacao);
 END;
 GO
 
@@ -828,13 +840,13 @@ GO
 CREATE OR ALTER PROCEDURE sp_atualizar_pedido
     -- só permite editar status, data prevista e observação
     -- cliente e filial não mudam depois que o pedido foi criado
-    @id_pedido INT, @status VARCHAR(15),
+    @fk_pedido INT, @status VARCHAR(15),
     @dt_prevista_entrega DATE = NULL, @observacao VARCHAR(300) = NULL
 AS
 BEGIN
     UPDATE PEDIDO SET status=@status, dt_prevista_entrega=@dt_prevista_entrega,
         observacao=@observacao
-    WHERE id_pedido=@id_pedido;
+    WHERE id_pedido=@fk_pedido;
 END;
 GO
 
@@ -845,11 +857,11 @@ BEGIN
     -- traz o nome do cliente e da filial via JOIN pra não retornar só ids
     -- ordenado do mais recente pro mais antigo
     SELECT p.id_pedido,p.dt_pedido,p.status,p.valor_total,
-           p.dt_prevista_entrega,p.observacao,p.id_empresa,p.id_filial,
+           p.dt_prevista_entrega,p.observacao,p.fk_empresa,p.fk_filial,
            e.razao_social AS cliente, f.nome AS filial
     FROM PEDIDO p
-    JOIN EMPRESA e ON e.id_empresa=p.id_empresa
-    JOIN FILIAL  f ON f.id_filial=p.id_filial
+    JOIN EMPRESA e ON e.id_empresa=p.fk_empresa
+    JOIN FILIAL  f ON f.id_filial=p.fk_filial
     ORDER BY p.dt_pedido DESC;
 END;
 GO
@@ -862,31 +874,31 @@ GO
 CREATE OR ALTER PROCEDURE sp_inserir_nota
     -- recebe o id do pedido que gerou essa nota
     -- um pedido pode chamar essa SP mais de uma vez pra gerar notas parciais
-    @id_pedido INT, @numero_nf VARCHAR(20),
+    @fk_pedido INT, @numero_nf VARCHAR(20),
     @serie CHAR(3) = '001', @chave_acesso CHAR(44) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
     -- SET NOCOUNT ON necessário aqui: essa SP faz INSERT seguido de SELECT
     -- sem ele o Python leria a mensagem "(1 linha afetada)" no lugar do SCOPE_IDENTITY()
-    INSERT INTO NOTA_FISCAL (id_pedido,numero_nf,serie,chave_acesso)
-    VALUES (@id_pedido,@numero_nf,@serie,@chave_acesso);
+    INSERT INTO NOTA_FISCAL (fk_pedido,numero_nf,serie,chave_acesso)
+    VALUES (@fk_pedido,@numero_nf,@serie,@chave_acesso);
     -- retorna o id da nota gerada pra conseguir inserir os itens dela em seguida
     -- sem esse retorno a aplicação não saberia em qual nota inserir os produtos
-    SELECT SCOPE_IDENTITY() AS id_nf;
+    SELECT SCOPE_IDENTITY() AS fk_nf;
 END;
 GO
 
 
 CREATE OR ALTER PROCEDURE sp_deletar_nota
     -- recebe o id da nota que vai ser removida
-    @id_nf INT
+    @fk_nf INT
 AS
 BEGIN
     -- deleta os itens primeiro por causa da chave estrangeira
     -- sem isso o banco bloquearia a exclusão da nota
-    DELETE FROM ITEM_NOTA   WHERE id_nf=@id_nf;
-    DELETE FROM NOTA_FISCAL WHERE id_nf=@id_nf;
+    DELETE FROM ITEM_NOTA   WHERE fk_nf=@fk_nf;
+    DELETE FROM NOTA_FISCAL WHERE id_nf=@fk_nf;
 END;
 GO
 
@@ -897,10 +909,10 @@ BEGIN
     -- traz o nome do cliente via dois JOINs: nota → pedido → empresa
     -- ordenado da emissão mais recente pra mais antiga
     SELECT n.id_nf,n.numero_nf,n.serie,n.dt_emissao,n.valor_total,
-           n.id_pedido, e.razao_social AS cliente
+           n.fk_pedido, e.razao_social AS cliente
     FROM NOTA_FISCAL n
-    JOIN PEDIDO  p ON p.id_pedido=n.id_pedido
-    JOIN EMPRESA e ON e.id_empresa=p.id_empresa
+    JOIN PEDIDO  p ON p.id_pedido=n.fk_pedido
+    JOIN EMPRESA e ON e.id_empresa=p.fk_empresa
     ORDER BY n.dt_emissao DESC;
 END;
 GO
@@ -909,14 +921,14 @@ GO
 CREATE OR ALTER PROCEDURE sp_listar_itens_nota
     -- recebe o id da nota e retorna só os produtos que ela cobre
     -- cada nota pode cobrir produtos diferentes do mesmo pedido
-    @id_nf INT
+    @fk_nf INT
 AS
 BEGIN
     -- traz a descrição e o sku do produto via JOIN pra não retornar só o id
-    SELECT it.id_nf,it.id_produto,it.quantidade,it.preco_unitario,
+    SELECT it.fk_nf,it.fk_produto,it.quantidade,it.preco_unitario,
            p.descricao AS produto, p.codigo_sku
-    FROM ITEM_NOTA it JOIN PRODUTO p ON p.id_produto=it.id_produto
-    WHERE it.id_nf=@id_nf;
+    FROM ITEM_NOTA it JOIN PRODUTO p ON p.id_produto=it.fk_produto
+    WHERE it.fk_nf=@fk_nf;
 END;
 GO
 
@@ -928,13 +940,13 @@ GO
 CREATE OR ALTER PROCEDURE sp_inserir_funcionario
     -- recebe os dados do funcionário e o id da filial onde ele vai trabalhar
     -- dt_admissao é obrigatória pra controle de tempo de casa
-    @id_filial INT, @nome VARCHAR(100), @cpf CHAR(11),
+    @fk_filial INT, @nome VARCHAR(100), @cpf CHAR(11),
     @cargo VARCHAR(60), @salario DECIMAL(10,2), @dt_admissao DATE
 AS
 BEGIN
     -- cpf tem UNIQUE então o banco rejeita duplicado automaticamente
-    INSERT INTO FUNCIONARIO (id_filial,nome,cpf,cargo,salario,dt_admissao)
-    VALUES (@id_filial,@nome,@cpf,@cargo,@salario,@dt_admissao);
+    INSERT INTO FUNCIONARIO (fk_filial,nome,cpf,cargo,salario,dt_admissao)
+    VALUES (@fk_filial,@nome,@cpf,@cargo,@salario,@dt_admissao);
 END;
 GO
 
@@ -942,14 +954,14 @@ GO
 CREATE OR ALTER PROCEDURE sp_atualizar_funcionario
     -- só permite editar nome, cargo, salário e status
     -- cpf e filial não são editáveis por essa SP
-    @id_funcionario INT, @nome VARCHAR(100),
+    @fk_funcionario INT, @nome VARCHAR(100),
     @cargo VARCHAR(60), @salario DECIMAL(10,2), @ativo BIT = 1
 AS
 BEGIN
     -- ativo=1 permite reativar um funcionário que tinha sido desativado
     -- o WHERE garante que só o funcionário com esse id seja alterado
     UPDATE FUNCIONARIO SET nome=@nome, cargo=@cargo, salario=@salario, ativo=@ativo
-    WHERE id_funcionario=@id_funcionario;
+    WHERE id_funcionario=@fk_funcionario;
 END;
 GO
 
@@ -960,8 +972,8 @@ BEGIN
     -- traz o nome da filial via JOIN pra não retornar só o id
     -- ordenado por nome pra facilitar a busca na tela
     SELECT f.id_funcionario,f.nome,f.cpf,f.cargo,f.salario,
-           f.dt_admissao,f.ativo,f.id_filial,fi.nome AS filial
-    FROM FUNCIONARIO f JOIN FILIAL fi ON fi.id_filial=f.id_filial
+           f.dt_admissao,f.ativo,f.fk_filial,fi.nome AS filial
+    FROM FUNCIONARIO f JOIN FILIAL fi ON fi.id_filial=f.fk_filial
     ORDER BY f.nome;
 END;
 GO
@@ -989,7 +1001,7 @@ GO
 CREATE OR ALTER PROCEDURE sp_atualizar_filial
     -- recebe o id da filial e todos os dados editáveis
     -- todos os campos são reescritos para manter a atualização simples
-    @id_filial INT, @nome VARCHAR(100), @cnpj CHAR(14), @telefone VARCHAR(20) = NULL,
+    @fk_filial INT, @nome VARCHAR(100), @cnpj CHAR(14), @telefone VARCHAR(20) = NULL,
     @dt_inauguracao DATE, @logradouro VARCHAR(150), @bairro VARCHAR(100),
     @cep CHAR(8), @cidade VARCHAR(80), @estado CHAR(2), @ativo BIT = 1
 AS
@@ -998,7 +1010,7 @@ BEGIN
     UPDATE FILIAL SET nome=@nome, cnpj=@cnpj, telefone=@telefone,
         dt_inauguracao=@dt_inauguracao, logradouro=@logradouro,
         bairro=@bairro, cep=@cep, cidade=@cidade, estado=@estado, ativo=@ativo
-    WHERE id_filial=@id_filial;
+    WHERE id_filial=@fk_filial;
 END;
 GO
 
@@ -1010,14 +1022,14 @@ GO
 CREATE OR ALTER PROCEDURE sp_inserir_veiculo
     -- recebe os dados do veículo e a filial onde ele ficará associado
     -- campos como marca, ano e capacidade são opcionais
-    @id_filial INT, @placa VARCHAR(8), @modelo VARCHAR(60),
+    @fk_filial INT, @placa VARCHAR(8), @modelo VARCHAR(60),
     @marca VARCHAR(40) = NULL, @ano SMALLINT = NULL,
     @capacidade_kg DECIMAL(8,2) = NULL
 AS
 BEGIN
     -- insere o veículo como ativo por padrão
-    INSERT INTO VEICULO (id_filial,placa,modelo,marca,ano,capacidade_kg)
-    VALUES (@id_filial,@placa,@modelo,@marca,@ano,@capacidade_kg);
+    INSERT INTO VEICULO (fk_filial,placa,modelo,marca,ano,capacidade_kg)
+    VALUES (@fk_filial,@placa,@modelo,@marca,@ano,@capacidade_kg);
 END;
 GO
 
@@ -1025,15 +1037,15 @@ GO
 CREATE OR ALTER PROCEDURE sp_atualizar_veiculo
     -- recebe o id do veículo e todos os campos editáveis
     -- ativo permite tirar um veículo de operação sem apagar o histórico
-    @id_veiculo INT, @id_filial INT, @placa VARCHAR(8), @modelo VARCHAR(60),
+    @fk_veiculo INT, @fk_filial INT, @placa VARCHAR(8), @modelo VARCHAR(60),
     @marca VARCHAR(40) = NULL, @ano SMALLINT = NULL,
     @capacidade_kg DECIMAL(8,2) = NULL, @ativo BIT = 1
 AS
 BEGIN
     -- atualiza os dados do veículo e sua filial responsável
-    UPDATE VEICULO SET id_filial=@id_filial, placa=@placa, modelo=@modelo,
+    UPDATE VEICULO SET fk_filial=@fk_filial, placa=@placa, modelo=@modelo,
         marca=@marca, ano=@ano, capacidade_kg=@capacidade_kg, ativo=@ativo
-    WHERE id_veiculo=@id_veiculo;
+    WHERE id_veiculo=@fk_veiculo;
 END;
 GO
 
@@ -1043,10 +1055,10 @@ AS
 BEGIN
     -- traz o nome da filial via JOIN para facilitar a visualização na aplicação
     -- também serve para popular o dropdown de veículos na tela de entregas
-    SELECT v.id_veiculo,v.id_filial,f.nome AS filial,v.placa,
+    SELECT v.id_veiculo,v.fk_filial,f.nome AS filial,v.placa,
            v.modelo,v.marca,v.ano,v.capacidade_kg,v.ativo
     FROM VEICULO v
-    JOIN FILIAL f ON f.id_filial=v.id_filial
+    JOIN FILIAL f ON f.id_filial=v.fk_filial
     ORDER BY v.placa;
 END;
 GO
@@ -1059,14 +1071,14 @@ GO
 CREATE OR ALTER PROCEDURE sp_inserir_entrega
     -- recebe pedido, motorista, veículo, datas e status da entrega
     -- dt_chegada e observação são opcionais porque a entrega pode ainda não ter sido finalizada
-    @id_pedido INT, @id_funcionario INT, @id_veiculo INT,
+    @fk_pedido INT, @fk_funcionario INT, @fk_veiculo INT,
     @dt_saida DATETIME, @dt_chegada DATETIME = NULL,
     @status VARCHAR(15) = 'PENDENTE', @observacao VARCHAR(300) = NULL
 AS
 BEGIN
     -- insere uma nova entrega ligada ao pedido, ao motorista e ao veículo
-    INSERT INTO ENTREGA (id_pedido,id_funcionario,id_veiculo,dt_saida,dt_chegada,status,observacao)
-    VALUES (@id_pedido,@id_funcionario,@id_veiculo,@dt_saida,@dt_chegada,@status,@observacao);
+    INSERT INTO ENTREGA (fk_pedido,fk_funcionario,fk_veiculo,dt_saida,dt_chegada,status,observacao)
+    VALUES (@fk_pedido,@fk_funcionario,@fk_veiculo,@dt_saida,@dt_chegada,@status,@observacao);
 END;
 GO
 
@@ -1074,14 +1086,14 @@ GO
 CREATE OR ALTER PROCEDURE sp_atualizar_entrega
     -- recebe o id da entrega e todos os campos operacionais que podem ser editados
     -- usada para trocar motorista, veículo, datas, status ou observação
-    @id_entrega INT, @id_pedido INT, @id_funcionario INT, @id_veiculo INT,
+    @id_entrega INT, @fk_pedido INT, @fk_funcionario INT, @fk_veiculo INT,
     @dt_saida DATETIME, @dt_chegada DATETIME = NULL,
     @status VARCHAR(15), @observacao VARCHAR(300) = NULL
 AS
 BEGIN
     -- atualiza a entrega mantendo o mesmo registro e seu histórico de identificação
-    UPDATE ENTREGA SET id_pedido=@id_pedido, id_funcionario=@id_funcionario,
-        id_veiculo=@id_veiculo, dt_saida=@dt_saida, dt_chegada=@dt_chegada,
+    UPDATE ENTREGA SET fk_pedido=@fk_pedido, fk_funcionario=@fk_funcionario,
+        fk_veiculo=@fk_veiculo, dt_saida=@dt_saida, dt_chegada=@dt_chegada,
         status=@status, observacao=@observacao
     WHERE id_entrega=@id_entrega;
 END;
@@ -1093,14 +1105,14 @@ AS
 BEGIN
     -- traz cliente, motorista e veículo via JOIN para não retornar apenas ids
     -- ordenado pela saída mais recente primeiro
-    SELECT e.id_entrega,e.id_pedido,emp.razao_social AS cliente,
-           e.id_funcionario,f.nome AS motorista,e.id_veiculo,
+    SELECT e.id_entrega,e.fk_pedido,emp.razao_social AS cliente,
+           e.fk_funcionario,f.nome AS motorista,e.fk_veiculo,
            v.placa,v.modelo,e.dt_saida,e.dt_chegada,e.status,e.observacao
     FROM ENTREGA e
-    JOIN PEDIDO p ON p.id_pedido=e.id_pedido
-    JOIN EMPRESA emp ON emp.id_empresa=p.id_empresa
-    JOIN FUNCIONARIO f ON f.id_funcionario=e.id_funcionario
-    JOIN VEICULO v ON v.id_veiculo=e.id_veiculo
+    JOIN PEDIDO p ON p.id_pedido=e.fk_pedido
+    JOIN EMPRESA emp ON emp.id_empresa=p.fk_empresa
+    JOIN FUNCIONARIO f ON f.id_funcionario=e.fk_funcionario
+    JOIN VEICULO v ON v.id_veiculo=e.fk_veiculo
     ORDER BY e.dt_saida DESC;
 END;
 GO
@@ -1115,11 +1127,11 @@ AS
 BEGIN
     -- traz produto e filial via JOIN pra não retornar só ids
     -- a aplicação usa estoque_minimo pra destacar produtos com quantidade baixa
-    SELECT e.id_produto,e.id_filial,e.quantidade,e.estoque_minimo,
+    SELECT e.fk_produto,e.fk_filial,e.quantidade,e.estoque_minimo,
            e.dt_atualizacao, p.descricao AS produto, f.nome AS filial
     FROM ESTOQUE e
-    JOIN PRODUTO p ON p.id_produto=e.id_produto
-    JOIN FILIAL  f ON f.id_filial=e.id_filial
+    JOIN PRODUTO p ON p.id_produto=e.fk_produto
+    JOIN FILIAL  f ON f.id_filial=e.fk_filial
     ORDER BY p.descricao, f.nome;
 END;
 GO
