@@ -14,7 +14,7 @@
 --
 --  PRIMARY KEY
 --    Identifica cada linha de forma única na tabela.
---    Pode ser um campo só (fk_filial) ou dois campos juntos (fk_pedido + fk_produto).
+--    Pode ser um campo só (id_filial) ou dois campos juntos (fk_pedido + fk_produto).
 --
 --  FOREIGN KEY ... REFERENCES
 --    Liga uma tabela a outra. Garante que não existam registros "soltos"
@@ -728,7 +728,7 @@ GO
 CREATE OR ALTER PROCEDURE sp_atualizar_empresa
     -- recebe o id pra saber qual empresa editar
     -- todos os campos são reescritos, então precisa mandar tudo mesmo que não mudou
-    @fk_empresa INT, @razao_social VARCHAR(120), @cnpj CHAR(14),
+    @id_empresa INT, @razao_social VARCHAR(120), @cnpj CHAR(14),
     @telefone VARCHAR(20) = NULL, @email VARCHAR(100) = NULL,
     @contato_responsavel VARCHAR(100) = NULL, @is_cliente BIT, @is_fornecedor BIT,
     @limite_credito DECIMAL(12,2) = 0, @logradouro VARCHAR(150),
@@ -742,7 +742,7 @@ BEGIN
         is_cliente=@is_cliente, is_fornecedor=@is_fornecedor,
         limite_credito=@limite_credito, logradouro=@logradouro, bairro=@bairro,
         cep=@cep, cidade=@cidade, estado=@estado, ativo=@ativo
-    WHERE id_empresa=@fk_empresa;
+    WHERE id_empresa=@id_empresa;
 END;
 GO
 
@@ -787,7 +787,7 @@ GO
 CREATE OR ALTER PROCEDURE sp_atualizar_produto
     -- recebe o id do produto e todos os campos editáveis
     -- ativo permite reativar um produto que estava desativado
-    @fk_produto INT, @fk_categoria INT, @codigo_sku VARCHAR(30),
+    @id_produto INT, @fk_categoria INT, @codigo_sku VARCHAR(30),
     @descricao VARCHAR(150), @unidade_medida VARCHAR(20),
     @preco_custo DECIMAL(10,2), @preco_venda DECIMAL(10,2),
     @peso_kg DECIMAL(8,3) = NULL, @ativo BIT = 1
@@ -799,7 +799,7 @@ BEGIN
         descricao=@descricao, unidade_medida=@unidade_medida,
         preco_custo=@preco_custo, preco_venda=@preco_venda,
         peso_kg=@peso_kg, ativo=@ativo
-    WHERE id_produto=@fk_produto;
+    WHERE id_produto=@id_produto;
 END;
 GO
 
@@ -840,13 +840,13 @@ GO
 CREATE OR ALTER PROCEDURE sp_atualizar_pedido
     -- só permite editar status, data prevista e observação
     -- cliente e filial não mudam depois que o pedido foi criado
-    @fk_pedido INT, @status VARCHAR(15),
+    @id_pedido INT, @status VARCHAR(15),
     @dt_prevista_entrega DATE = NULL, @observacao VARCHAR(300) = NULL
 AS
 BEGIN
     UPDATE PEDIDO SET status=@status, dt_prevista_entrega=@dt_prevista_entrega,
         observacao=@observacao
-    WHERE id_pedido=@fk_pedido;
+    WHERE id_pedido=@id_pedido;
 END;
 GO
 
@@ -885,20 +885,20 @@ BEGIN
     VALUES (@fk_pedido,@numero_nf,@serie,@chave_acesso);
     -- retorna o id da nota gerada pra conseguir inserir os itens dela em seguida
     -- sem esse retorno a aplicação não saberia em qual nota inserir os produtos
-    SELECT SCOPE_IDENTITY() AS fk_nf;
+    SELECT SCOPE_IDENTITY() AS id_nf;
 END;
 GO
 
 
 CREATE OR ALTER PROCEDURE sp_deletar_nota
     -- recebe o id da nota que vai ser removida
-    @fk_nf INT
+    @id_nf INT
 AS
 BEGIN
     -- deleta os itens primeiro por causa da chave estrangeira
     -- sem isso o banco bloquearia a exclusão da nota
-    DELETE FROM ITEM_NOTA   WHERE fk_nf=@fk_nf;
-    DELETE FROM NOTA_FISCAL WHERE id_nf=@fk_nf;
+    DELETE FROM ITEM_NOTA   WHERE fk_nf=@id_nf;
+    DELETE FROM NOTA_FISCAL WHERE id_nf=@id_nf;
 END;
 GO
 
@@ -921,14 +921,14 @@ GO
 CREATE OR ALTER PROCEDURE sp_listar_itens_nota
     -- recebe o id da nota e retorna só os produtos que ela cobre
     -- cada nota pode cobrir produtos diferentes do mesmo pedido
-    @fk_nf INT
+    @id_nf INT
 AS
 BEGIN
     -- traz a descrição e o sku do produto via JOIN pra não retornar só o id
     SELECT it.fk_nf,it.fk_produto,it.quantidade,it.preco_unitario,
            p.descricao AS produto, p.codigo_sku
     FROM ITEM_NOTA it JOIN PRODUTO p ON p.id_produto=it.fk_produto
-    WHERE it.fk_nf=@fk_nf;
+    WHERE it.fk_nf=@id_nf;
 END;
 GO
 
@@ -954,14 +954,14 @@ GO
 CREATE OR ALTER PROCEDURE sp_atualizar_funcionario
     -- só permite editar nome, cargo, salário e status
     -- cpf e filial não são editáveis por essa SP
-    @fk_funcionario INT, @nome VARCHAR(100),
+    @id_funcionario INT, @nome VARCHAR(100),
     @cargo VARCHAR(60), @salario DECIMAL(10,2), @ativo BIT = 1
 AS
 BEGIN
     -- ativo=1 permite reativar um funcionário que tinha sido desativado
     -- o WHERE garante que só o funcionário com esse id seja alterado
     UPDATE FUNCIONARIO SET nome=@nome, cargo=@cargo, salario=@salario, ativo=@ativo
-    WHERE id_funcionario=@fk_funcionario;
+    WHERE id_funcionario=@id_funcionario;
 END;
 GO
 
@@ -1001,7 +1001,7 @@ GO
 CREATE OR ALTER PROCEDURE sp_atualizar_filial
     -- recebe o id da filial e todos os dados editáveis
     -- todos os campos são reescritos para manter a atualização simples
-    @fk_filial INT, @nome VARCHAR(100), @cnpj CHAR(14), @telefone VARCHAR(20) = NULL,
+    @id_filial INT, @nome VARCHAR(100), @cnpj CHAR(14), @telefone VARCHAR(20) = NULL,
     @dt_inauguracao DATE, @logradouro VARCHAR(150), @bairro VARCHAR(100),
     @cep CHAR(8), @cidade VARCHAR(80), @estado CHAR(2), @ativo BIT = 1
 AS
@@ -1010,7 +1010,7 @@ BEGIN
     UPDATE FILIAL SET nome=@nome, cnpj=@cnpj, telefone=@telefone,
         dt_inauguracao=@dt_inauguracao, logradouro=@logradouro,
         bairro=@bairro, cep=@cep, cidade=@cidade, estado=@estado, ativo=@ativo
-    WHERE id_filial=@fk_filial;
+    WHERE id_filial=@id_filial;
 END;
 GO
 
@@ -1037,7 +1037,7 @@ GO
 CREATE OR ALTER PROCEDURE sp_atualizar_veiculo
     -- recebe o id do veículo e todos os campos editáveis
     -- ativo permite tirar um veículo de operação sem apagar o histórico
-    @fk_veiculo INT, @fk_filial INT, @placa VARCHAR(8), @modelo VARCHAR(60),
+    @id_veiculo INT, @fk_filial INT, @placa VARCHAR(8), @modelo VARCHAR(60),
     @marca VARCHAR(40) = NULL, @ano SMALLINT = NULL,
     @capacidade_kg DECIMAL(8,2) = NULL, @ativo BIT = 1
 AS
@@ -1045,7 +1045,7 @@ BEGIN
     -- atualiza os dados do veículo e sua filial responsável
     UPDATE VEICULO SET fk_filial=@fk_filial, placa=@placa, modelo=@modelo,
         marca=@marca, ano=@ano, capacidade_kg=@capacidade_kg, ativo=@ativo
-    WHERE id_veiculo=@fk_veiculo;
+    WHERE id_veiculo=@id_veiculo;
 END;
 GO
 
