@@ -290,11 +290,13 @@ CREATE TABLE ITEM_NOTA (
     id_produto     INT           NOT NULL,
     quantidade     INT           NOT NULL,
     preco_unitario DECIMAL(10,2) NOT NULL,
-    CONSTRAINT PK_ITEM_NOTA  PRIMARY KEY (id_nf, id_produto),
-    CONSTRAINT FK_INOTA_NF   FOREIGN KEY (id_nf)      REFERENCES NOTA_FISCAL(id_nf),
-    CONSTRAINT FK_INOTA_PROD FOREIGN KEY (id_produto) REFERENCES PRODUTO(id_produto),
+    desconto_pct   DECIMAL(5,2)  NULL DEFAULT 0,
+    CONSTRAINT PK_ITEM_NOTA     PRIMARY KEY (id_nf, id_produto),
+    CONSTRAINT FK_INOTA_NF      FOREIGN KEY (id_nf)      REFERENCES NOTA_FISCAL(id_nf),
+    CONSTRAINT FK_INOTA_PROD    FOREIGN KEY (id_produto) REFERENCES PRODUTO(id_produto),
     CONSTRAINT CK_ITEM_NOTA_QUANTIDADE CHECK (quantidade > 0),
-    CONSTRAINT CK_ITEM_NOTA_PRECO CHECK (preco_unitario > 0)
+    CONSTRAINT CK_ITEM_NOTA_PRECO      CHECK (preco_unitario > 0),
+    CONSTRAINT CK_ITEM_NOTA_DESCONTO   CHECK (desconto_pct >= 0 AND desconto_pct <= 100)
 );
 GO
 
@@ -420,10 +422,10 @@ BEGIN
     -- captura também as notas que tiveram itens deletados
     INSERT INTO @ids SELECT id_nf FROM deleted;
 
-    -- recalcula o valor total somando quantidade × preço de todos os itens da nota
-    -- ISNULL para garantir que o NULL se torna 0
+    -- recalcula o valor total somando quantidade × preço com o desconto percentual do item
+    -- ISNULL para garantir que o desconto NULL vira 0 e que o total NULL se torna 0
     UPDATE N SET N.valor_total = (
-        SELECT ISNULL(SUM(it.quantidade * it.preco_unitario), 0)
+        SELECT ISNULL(SUM(it.quantidade * it.preco_unitario * (1 - ISNULL(it.desconto_pct, 0) / 100.0)), 0)
         FROM ITEM_NOTA it WHERE it.id_nf = N.id_nf
     )
     FROM NOTA_FISCAL N INNER JOIN @ids I ON I.id_nf = N.id_nf;
@@ -531,10 +533,10 @@ INSERT INTO NOTA_FISCAL (id_pedido,numero_nf,serie,dt_emissao) VALUES
 (1,'NF-2026-00002','001',CONVERT(DATETIME,'2026-04-21 08:00',120)),
 (2,'NF-2026-00003','001',CONVERT(DATETIME,'2026-04-22 10:45',120));
 
-INSERT INTO ITEM_NOTA (id_nf,id_produto,quantidade,preco_unitario) VALUES
-(1,1,100,18.90),(1,2,50,9.50),   -- NF1: arroz + feijão
-(2,6,200,4.50),                  -- NF2: detergente (faltou na 1ª entrega)
-(3,4,300,3.20),(3,5,150,13.50),(3,8,200,7.80);
+INSERT INTO ITEM_NOTA (id_nf,id_produto,quantidade,preco_unitario,desconto_pct) VALUES
+(1,1,100,18.90,0.00),(1,2,50,9.50,0.00),   -- NF1: arroz + feijão
+(2,6,200,4.50,5.00),                        -- NF2: detergente (faltou na 1ª entrega)
+(3,4,300,3.20,0.00),(3,5,150,13.50,0.00),(3,8,200,7.80,3.00);
 
 INSERT INTO VEICULO (id_filial,placa,modelo,marca,ano,capacidade_kg) VALUES
 (1,'QRS1234','Delivery 3/4','Fiat',    2021,4000.00),
