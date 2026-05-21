@@ -385,8 +385,6 @@ CREATE OR ALTER TRIGGER trg_valor_pedido
 ON ITEM_PEDIDO AFTER INSERT, UPDATE, DELETE
 AS
 BEGIN
-    SET NOCOUNT ON;
-
     -- tabela temporária pra guardar os ids dos pedidos afetados
     DECLARE @ids TABLE (id_pedido INT);
 
@@ -413,7 +411,6 @@ CREATE OR ALTER TRIGGER trg_valor_nota
 ON ITEM_NOTA AFTER INSERT, UPDATE, DELETE
 AS
 BEGIN
-    SET NOCOUNT ON;
     -- tabela temporária pra guardar os ids das notas afetadas
     DECLARE @ids TABLE (id_nf INT);
 
@@ -440,7 +437,6 @@ CREATE OR ALTER TRIGGER trg_atualiza_estoque
 ON MOVIMENTACAO AFTER INSERT
 AS
 BEGIN
-    SET NOCOUNT ON;
     -- se for entrada, soma a quantidade no estoque
     UPDATE E SET E.quantidade = E.quantidade + I.quantidade, E.dt_atualizacao = GETDATE()
     FROM ESTOQUE E INNER JOIN inserted I ON I.id_produto = E.id_produto AND I.id_filial = E.id_filial
