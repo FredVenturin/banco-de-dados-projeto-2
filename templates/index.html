@@ -638,12 +638,13 @@ async function salvarEmp() {
     telefone:e($('e-tel')), email:e($('e-email')),
     contato_responsavel:e($('e-contato')),
     is_cliente:$('e-cli').checked?1:0, is_fornecedor:$('e-forn').checked?1:0,
-    limite_credito:$('e-limite').value||0,
+    limite_credito:$('e-limite').value||0, // DECIMAL(12,2) max 9.999.999.999,99
     logradouro:e($('e-logradouro')), bairro:e($('e-bairro')),
     cep:e($('e-cep')), cidade:e($('e-cidade')),
     estado:$('e-estado').value.toUpperCase(), ativo:1,
   };
   if (!d.razao_social||!d.cnpj) return toast('⚠ Preencha os campos obrigatórios.');
+  if (d.limite_credito && +d.limite_credito > 9999999999.99) return toast('⚠ Limite de crédito muito alto. Máximo: R$ 9.999.999.999,99.');
   const id = $('e-id').value;
   try {
     await api(id?'/api/empresas/'+id:'/api/empresas',
@@ -713,9 +714,12 @@ async function salvarProd() {
   if (d.codigo_sku.length < 3) return toast('⚠ SKU deve ter no mínimo 3 caracteres.');
   if (!/^[A-Za-z0-9\-_]+$/.test(d.codigo_sku)) return toast('⚠ SKU deve conter apenas letras, números, hífens ou underscores.');
   if (!$('p-custo').value || custo <= 0) return toast('⚠ Preço de custo deve ser maior que zero.');
+  if (custo > 99999999.99) return toast('⚠ Preço de custo muito alto. Máximo: R$ 99.999.999,99.');
   if (!$('p-venda').value || venda <= 0) return toast('⚠ Preço de venda deve ser maior que zero.');
+  if (venda > 99999999.99) return toast('⚠ Preço de venda muito alto. Máximo: R$ 99.999.999,99.');
   if (venda <= custo) return toast('⚠ Preço de venda deve ser maior que o preço de custo.');
   if (peso && +peso <= 0) return toast('⚠ Peso deve ser maior que zero.');
+  if (peso && +peso > 99999.999) return toast('⚠ Peso muito alto. Máximo: 99.999 kg.');
   const id = $('p-id').value;
   try {
     await api(id?'/api/produtos/'+id:'/api/produtos',
@@ -917,6 +921,7 @@ async function salvarFunc() {
   if (!d.cargo) return toast('⚠ Informe o cargo.');
   if (!d.dt_admissao) return toast('⚠ Informe a data de admissão.');
   if (!d.salario || +d.salario <= 0) return toast('⚠ Salário deve ser maior que zero.');
+  if (+d.salario > 99999999.99) return toast('⚠ Salário muito alto. Máximo: R$ 99.999.999,99.');
   const id = $('f-id').value;
   try {
     await api(id?'/api/funcionarios/'+id:'/api/funcionarios',
@@ -1074,6 +1079,7 @@ async function salvarVei() {
   if (isNaN(ano) || ano < 1900 || ano > 2100 || String(anoVal).length !== 4)
     return toast("⚠ Ano inválido. Informe 4 dígitos entre 1900 e 2100.");
   if (d.capacidade_kg && +d.capacidade_kg <= 0) return toast("⚠ Capacidade deve ser maior que zero.");
+  if (d.capacidade_kg && +d.capacidade_kg > 999999.99) return toast("⚠ Capacidade muito alta. Máximo: 999.999,99 kg.");
   try {
     await api(id?"/api/veiculos/"+id:"/api/veiculos", {method:id?"PUT":"POST", body:JSON.stringify(d)});
     fechar("m-vei"); carregarVeiculos(); toast("✅ Veículo salvo!");

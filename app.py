@@ -110,6 +110,9 @@ def get_empresa(id):
 def criar_empresa():
     try:
         d = request.json
+        lc = d.get("limite_credito", 0)
+        if lc and float(lc) > 9999999999.99:
+            return jsonify({"ok": False, "detalhe": "Limite de crédito muito alto. Máximo: R$ 9.999.999.999,99."}), 400
         exec_sp("sp_inserir_empresa", [
             d["razao_social"], d["cnpj"], d.get("telefone"), d.get("email"),
             d.get("contato_responsavel"), int(d.get("is_cliente", 0)),
@@ -124,6 +127,9 @@ def criar_empresa():
 def editar_empresa(id):
     try:
         d = request.json
+        lc = d.get("limite_credito", 0)
+        if lc and float(lc) > 9999999999.99:
+            return jsonify({"ok": False, "detalhe": "Limite de crédito muito alto. Máximo: R$ 9.999.999.999,99."}), 400
         exec_sp("sp_atualizar_empresa", [
             id, d["razao_social"], d["cnpj"], d.get("telefone"), d.get("email"),
             d.get("contato_responsavel"), int(d.get("is_cliente", 0)),
@@ -179,12 +185,18 @@ def criar_produto():
         peso  = d.get("peso_kg")
         if custo <= 0:
             return jsonify({"ok": False, "detalhe": "Preço de custo deve ser maior que zero."}), 400
+        if custo > 99999999.99:
+            return jsonify({"ok": False, "detalhe": "Preço de custo muito alto. Máximo: R$ 99.999.999,99."}), 400
         if venda <= 0:
             return jsonify({"ok": False, "detalhe": "Preço de venda deve ser maior que zero."}), 400
+        if venda > 99999999.99:
+            return jsonify({"ok": False, "detalhe": "Preço de venda muito alto. Máximo: R$ 99.999.999,99."}), 400
         if venda <= custo:
             return jsonify({"ok": False, "detalhe": "Preço de venda deve ser maior que o preço de custo."}), 400
         if peso is not None and float(peso) <= 0:
             return jsonify({"ok": False, "detalhe": "Peso deve ser maior que zero."}), 400
+        if peso is not None and float(peso) > 99999.999:
+            return jsonify({"ok": False, "detalhe": "Peso muito alto. Máximo: 99.999 kg."}), 400
         exec_sp("sp_inserir_produto", [
             d["fk_categoria"], d["codigo_sku"], d["descricao"],
             d["unidade_medida"], custo, venda, peso or None
@@ -202,12 +214,18 @@ def editar_produto(id):
         peso  = d.get("peso_kg")
         if custo <= 0:
             return jsonify({"ok": False, "detalhe": "Preço de custo deve ser maior que zero."}), 400
+        if custo > 99999999.99:
+            return jsonify({"ok": False, "detalhe": "Preço de custo muito alto. Máximo: R$ 99.999.999,99."}), 400
         if venda <= 0:
             return jsonify({"ok": False, "detalhe": "Preço de venda deve ser maior que zero."}), 400
+        if venda > 99999999.99:
+            return jsonify({"ok": False, "detalhe": "Preço de venda muito alto. Máximo: R$ 99.999.999,99."}), 400
         if venda <= custo:
             return jsonify({"ok": False, "detalhe": "Preço de venda deve ser maior que o preço de custo."}), 400
         if peso is not None and float(peso) <= 0:
             return jsonify({"ok": False, "detalhe": "Peso deve ser maior que zero."}), 400
+        if peso is not None and float(peso) > 99999.999:
+            return jsonify({"ok": False, "detalhe": "Peso muito alto. Máximo: 99.999 kg."}), 400
         exec_sp("sp_atualizar_produto", [
             id, d["fk_categoria"], d["codigo_sku"], d["descricao"],
             d["unidade_medida"], custo, venda,
@@ -370,6 +388,8 @@ def criar_funcionario():
             return jsonify({"ok": False, "detalhe": "Informe a data de admissão."}), 400
         if not d.get("salario") or float(d["salario"]) <= 0:
             return jsonify({"ok": False, "detalhe": "Salário deve ser maior que zero."}), 400
+        if float(d["salario"]) > 99999999.99:
+            return jsonify({"ok": False, "detalhe": "Salário muito alto. Máximo: R$ 99.999.999,99."}), 400
         exec_sp("sp_inserir_funcionario", [
             d["fk_filial"], d["nome"], cpf,
             d["cargo"], d["salario"], d["dt_admissao"]
@@ -384,6 +404,8 @@ def editar_funcionario(id):
         d = request.json
         if not d.get("salario") or float(d["salario"]) <= 0:
             return jsonify({"ok": False, "detalhe": "Salário deve ser maior que zero."}), 400
+        if float(d["salario"]) > 99999999.99:
+            return jsonify({"ok": False, "detalhe": "Salário muito alto. Máximo: R$ 99.999.999,99."}), 400
         exec_sp("sp_atualizar_funcionario", [
             id, d["nome"], d["cargo"], d["salario"], int(d.get("ativo", 1))
         ])
@@ -509,6 +531,8 @@ def criar_veiculo():
         cap = d.get("capacidade_kg")
         if cap is not None and float(cap) <= 0:
             return jsonify({"ok": False, "detalhe": "Capacidade deve ser maior que zero."}), 400
+        if cap is not None and float(cap) > 999999.99:
+            return jsonify({"ok": False, "detalhe": "Capacidade muito alta. Máximo: 999.999,99 kg."}), 400
         exec_sp("sp_inserir_veiculo", [
             d["fk_filial"], placa, d["modelo"],
             d.get("marca"), ano, cap
@@ -535,6 +559,8 @@ def editar_veiculo(id):
         cap = d.get("capacidade_kg")
         if cap is not None and float(cap) <= 0:
             return jsonify({"ok": False, "detalhe": "Capacidade deve ser maior que zero."}), 400
+        if cap is not None and float(cap) > 999999.99:
+            return jsonify({"ok": False, "detalhe": "Capacidade muito alta. Máximo: 999.999,99 kg."}), 400
         exec_sp("sp_atualizar_veiculo", [
             id, d["fk_filial"], placa, d["modelo"],
             d.get("marca"), ano, cap, int(d.get("ativo", 1))
