@@ -61,9 +61,9 @@ Ele contém:
 
 ### Triggers
 
-- `trg_valor_pedido` — recalcula o valor total do pedido.
-- `trg_valor_nota` — recalcula o valor total da nota fiscal.
-- `trg_atualiza_estoque` — atualiza o estoque após movimentações.
+- `trg_valor_pedido` — recalcula o valor total do pedido automaticamente a cada inserção, alteração ou remoção de itens, já considerando o desconto percentual de cada item.
+- `trg_valor_nota` — mesmo comportamento para a nota fiscal.
+- `trg_atualiza_estoque` — atualiza o saldo do estoque após cada movimentação. Se ainda não existir registro de estoque para aquele produto e filial, cria automaticamente antes de atualizar.
 
 ### Views de relatório
 
@@ -227,7 +227,7 @@ http://localhost:5000
 
 ### Empresa unificada
 
-A tabela `EMPRESA` substitui a separação entre cliente e fornecedor. Uma empresa pode ser cliente, fornecedora ou ambas, usando os campos `is_cliente` e `is_fornecedor`.
+A tabela `EMPRESA` substitui a separação entre cliente e fornecedor. Uma empresa pode ser cliente, fornecedora ou ambas, usando os campos `is_cliente` e `is_fornecedor`. O banco garante pelo menos um dos dois via constraint `CK_EMPRESA_PAPEL`.
 
 ### Nota fiscal parcial
 
@@ -239,7 +239,19 @@ Os dados de endereço foram mantidos diretamente em `EMPRESA` e `FILIAL`, evitan
 
 ### Exclusões lógicas
 
-Em vários módulos, a exclusão na interface representa desativação ou cancelamento, preservando o histórico do sistema.
+Em vários módulos, a exclusão na interface representa desativação ou cancelamento, preservando o histórico do sistema. Os campos `ativo` e `status` controlam esse comportamento, com valores DEFAULT definidos no próprio banco.
+
+### Separação entre ITEM_PEDIDO e ITEM_NOTA
+
+As tabelas `ITEM_PEDIDO` e `ITEM_NOTA` são separadas porque o que foi pedido pode ser diferente do que foi faturado — especialmente com a lógica de nota parcial. Ambas possuem o campo `desconto_pct` para registrar o desconto aplicado em cada item, e o valor total é recalculado automaticamente pelas triggers correspondentes.
+
+### Tabela FORNECE com atributo próprio
+
+A relação entre empresa e produto não é simples — ela carrega um dado próprio, que é o preço negociado. Por isso existe uma tabela associativa `FORNECE` em vez de uma chave estrangeira direta, permitindo registrar o preço combinado entre fornecedor e produto.
+
+### Nomenclatura de colunas
+
+As colunas seguem a convenção `id_` para chaves primárias e `fk_` para chaves estrangeiras, tornando explícita a natureza de cada campo diretamente pelo nome.
 
 ---
 
