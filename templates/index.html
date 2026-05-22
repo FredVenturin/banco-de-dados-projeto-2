@@ -708,7 +708,10 @@ async function salvarProd() {
     preco_custo:$('p-custo').value, preco_venda:$('p-venda').value,
     peso_kg:peso||null, ativo:1,
   };
-  if (!d.descricao||!d.codigo_sku) return toast('⚠ Preencha os campos obrigatórios.');
+  if (!d.descricao) return toast('⚠ Informe a descrição do produto.');
+  if (!d.codigo_sku) return toast('⚠ Informe o SKU do produto.');
+  if (d.codigo_sku.length < 3) return toast('⚠ SKU deve ter no mínimo 3 caracteres.');
+  if (!/^[A-Za-z0-9\-_]+$/.test(d.codigo_sku)) return toast('⚠ SKU deve conter apenas letras, números, hífens ou underscores.');
   if (!$('p-custo').value || custo <= 0) return toast('⚠ Preço de custo deve ser maior que zero.');
   if (!$('p-venda').value || venda <= 0) return toast('⚠ Preço de venda deve ser maior que zero.');
   if (venda <= custo) return toast('⚠ Preço de venda deve ser maior que o preço de custo.');
@@ -906,8 +909,11 @@ async function salvarFunc() {
     fk_filial:$('f-fil').value, nome:e($('f-nome')), cpf:cpfRaw,
     cargo:e($('f-cargo')), salario:$('f-sal').value, dt_admissao:$('f-adm').value, ativo:1,
   };
-  if (!d.nome||!d.cpf) return toast('⚠ Preencha os campos obrigatórios.');
-  if (cpfRaw.length !== 11) return toast('⚠ CPF deve ter exatamente 11 dígitos.');
+  if (!d.nome) return toast('⚠ Informe o nome do funcionário.');
+  const cpfDigits = e($('f-cpf')).replace(/\D/g,'');
+  if (!e($('f-cpf'))) return toast('⚠ Informe o CPF.');
+  if (cpfDigits.length === 0) return toast('⚠ CPF deve conter apenas números.');
+  if (cpfDigits.length !== 11) return toast('⚠ CPF deve ter exatamente 11 dígitos numéricos.');
   if (!d.cargo) return toast('⚠ Informe o cargo.');
   if (!d.dt_admissao) return toast('⚠ Informe a data de admissão.');
   if (!d.salario || +d.salario <= 0) return toast('⚠ Salário deve ser maior que zero.');
@@ -1063,11 +1069,10 @@ async function salvarVei() {
   };
   if (!d.placa||!d.modelo) return toast("⚠ Preencha placa e modelo.");
   if (placa.length < 7) return toast("⚠ Placa deve ter no mínimo 7 caracteres.");
-  if (anoVal) {
-    const ano = parseInt(anoVal);
-    if (isNaN(ano) || ano < 1900 || ano > 2100 || String(anoVal).length !== 4)
-      return toast("⚠ Ano inválido. Informe 4 dígitos entre 1900 e 2100.");
-  }
+  if (!anoVal) return toast("⚠ Informe o ano do veículo.");
+  const ano = parseInt(anoVal);
+  if (isNaN(ano) || ano < 1900 || ano > 2100 || String(anoVal).length !== 4)
+    return toast("⚠ Ano inválido. Informe 4 dígitos entre 1900 e 2100.");
   if (d.capacidade_kg && +d.capacidade_kg <= 0) return toast("⚠ Capacidade deve ser maior que zero.");
   try {
     await api(id?"/api/veiculos/"+id:"/api/veiculos", {method:id?"PUT":"POST", body:JSON.stringify(d)});
@@ -1109,7 +1114,10 @@ async function carregarFiliaisCompleto() {
       <td>${f.id_filial}</td><td>${f.nome}</td><td>${f.cnpj}</td>
       <td>${f.cidade}/${f.estado}</td>
       <td>${f.telefone||"-"}</td><td>${dt(f.dt_inauguracao)}</td>
-      <td><button class="btn bs bp" onclick="editarFil(${f.id_filial})">Editar</button></td>
+      <td>
+        <button class="btn bs bp" onclick="editarFil(${f.id_filial})">Editar</button>
+        <button class="btn bs br" onclick="deletarFil(${f.id_filial})">Desativar</button>
+      </td>
     </tr>`)
   );
 }
@@ -1131,23 +1139,36 @@ async function editarFil(id) {
 }
 async function salvarFil() {
   const id = $("fl-id").value;
-  const telRaw = $("fl-tel").value.replace(/\D/g,'');
+  const cnpjRaw = $("fl-cnpj").value.replace(/\D/g,'');
+  const cepRaw  = $("fl-cep").value.replace(/\D/g,'');
+  const telRaw  = $("fl-tel").value.replace(/\D/g,'');
   const d = {
-    nome:$("fl-nome").value, cnpj:$("fl-cnpj").value,
+    nome:$("fl-nome").value, cnpj:cnpjRaw,
     telefone:telRaw||null,
     dt_inauguracao:$("fl-inau").value,
     logradouro:$("fl-logradouro").value, bairro:$("fl-bairro").value,
-    cep:$("fl-cep").value, cidade:$("fl-cidade").value,
+    cep:cepRaw, cidade:$("fl-cidade").value,
     estado:$("fl-estado").value.toUpperCase()
   };
-  if (!d.nome||!d.cnpj) return toast("⚠ Preencha os campos obrigatórios.");
+  if (!d.nome) return toast("⚠ Informe o nome da filial.");
+  if (!cnpjRaw || cnpjRaw.length !== 14) return toast("⚠ CNPJ deve ter exatamente 14 dígitos.");
+  if (!cepRaw || cepRaw.length !== 8) return toast("⚠ CEP deve ter exatamente 8 dígitos.");
   if (!d.dt_inauguracao) return toast("⚠ Informe a data de inauguração.");
+  if (!$("fl-logradouro").value) return toast("⚠ Informe o logradouro.");
+  if (!$("fl-cidade").value) return toast("⚠ Informe a cidade.");
   if (telRaw && (telRaw.length < 10 || telRaw.length > 11))
     return toast("⚠ Telefone deve ter 10 ou 11 dígitos (com DDD).");
   try {
     if (id) await api("/api/filiais/"+id, {method:"PUT", body:JSON.stringify(d)});
     else    await api("/api/filiais",     {method:"POST",body:JSON.stringify(d)});
     fechar("m-fil"); carregarFiliaisCompleto(); toast("✅ Filial salva!");
+  } catch(e) {}
+}
+async function deletarFil(id) {
+  if (!confirm("Desativar esta filial?")) return;
+  try {
+    await api("/api/filiais/"+id, {method:"DELETE"});
+    carregarFiliaisCompleto(); toast("✅ Filial desativada.");
   } catch(e) {}
 }
 
