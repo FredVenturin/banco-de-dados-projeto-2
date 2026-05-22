@@ -169,6 +169,7 @@ tr:hover td { background: #fafafa; }
     <button onclick="ir('notas',this)">📄 Notas Fiscais</button>
     <button onclick="ir('funcionarios',this)">👷 Funcionários</button>
     <button onclick="ir('estoque',this)">🏪 Estoque</button>
+    <button onclick="ir('movimentacoes',this)">🔄 Movimentações</button>
     <button onclick="ir('entregas',this)">🚚 Entregas</button>
     <button onclick="ir('veiculos',this)">🚛 Veículos</button>
     <button onclick="ir('fornecimentos',this)">🤝 Produtos por Fornecedor</button>
@@ -253,6 +254,21 @@ tr:hover td { background: #fafafa; }
           <input id="q-est" placeholder="Buscar produto ou filial…" oninput="filtrar('t-est',this.value)">
         </div>
         <div class="tbl-wrap"><div id="t-est"></div></div>
+      </div>
+    </div>
+
+    <!-- ═══ MOVIMENTAÇÕES ══════════════════════════════════════════ -->
+    <div id="sec-movimentacoes" class="sec">
+      <div class="card">
+        <h2>Movimentações de Estoque</h2>
+        <p class="note">Cada INSERT em MOVIMENTACAO dispara a trigger <strong>trg_atualiza_estoque</strong>, que soma (ENTRADA) ou subtrai (SAIDA) o saldo na tabela ESTOQUE automaticamente.</p>
+        <div class="bar">
+          <input id="q-mov" placeholder="Buscar produto, filial ou funcionário…" oninput="filtrar('t-mov',this.value)">
+          <button class="btn bp" onclick="abrirMov()">+ Nova Movimentação</button>
+          <button class="btn" onclick="diagMov()" title="Verificar estado do banco">🔍 Diagnóstico</button>
+        </div>
+        <div id="mov-diag" style="display:none;margin-bottom:10px"></div>
+        <div class="tbl-wrap"><div id="t-mov"></div></div>
       </div>
     </div>
 
@@ -373,14 +389,25 @@ tr:hover td { background: #fafafa; }
   </div>
 </div>
 
+<!-- ═══ MODAL ITENS DO PEDIDO (visualização) ══════════════════ -->
+<div id="m-ped-itens" class="overlay">
+  <div class="modal" style="width:680px;max-width:98vw">
+    <h3 id="m-ped-itens-titulo">Itens do Pedido</h3>
+    <div id="m-ped-itens-corpo"></div>
+    <div class="mfooter">
+      <button class="btn" onclick="fechar('m-ped-itens')">Fechar</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══ MODAL PEDIDO ═══════════════════════════════════════════ -->
 <div id="m-ped" class="overlay">
-  <div class="modal">
+  <div class="modal" style="width:740px;max-width:98vw">
     <h3 id="m-ped-titulo">Novo Pedido</h3>
     <input type="hidden" id="ped-id">
-    <div class="fg"><label>Cliente *</label><select id="ped-cli"></select></div>
-    <div class="fg"><label>Filial *</label><select id="ped-fil"></select></div>
     <div class="grid2">
+      <div class="fg full"><label>Cliente *</label><select id="ped-cli"></select></div>
+      <div class="fg full"><label>Filial *</label><select id="ped-fil"></select></div>
       <div class="fg"><label>Status</label>
         <select id="ped-status">
           <option>AGUARDANDO</option><option>APROVADO</option>
@@ -388,29 +415,103 @@ tr:hover td { background: #fafafa; }
         </select>
       </div>
       <div class="fg"><label>Previsão de Entrega</label><input id="ped-prev" type="date"></div>
+      <div class="fg full"><label>Observação</label><textarea id="ped-obs" rows="2" style="resize:vertical;width:100%"></textarea></div>
     </div>
-    <div class="fg"><label>Observação</label><textarea id="ped-obs" rows="2" style="resize:vertical"></textarea></div>
+
+    <!-- Seção de itens — sempre visível -->
+    <div style="margin-top:14px;padding-top:12px;border-top:2px solid #e8f0fe">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <label style="font-size:.8rem;font-weight:700;color:#1a73e8;flex:1">📦 ITENS DO PEDIDO</label>
+        <span id="ped-total-label" style="font-size:.84rem;font-weight:700;color:#137333"></span>
+        <button class="btn bs bp" onclick="addItemPed()">+ Adicionar Produto</button>
+      </div>
+      <!-- Linha de entrada de novo item -->
+      <div id="ped-add-row" style="display:none;margin-bottom:8px">
+        <div style="display:grid;grid-template-columns:2fr 90px 120px 90px auto;gap:6px;align-items:center;padding:8px 10px;background:#e8f0fe;border-radius:8px;border:1px solid #c5d9fb">
+          <div>
+            <div style="font-size:.7rem;color:#5f6368;margin-bottom:2px">Produto *</div>
+            <select id="pitem-prod" style="width:100%;padding:5px 7px;border:1px solid #dadce0;border-radius:5px;font-size:.83rem"></select>
+          </div>
+          <div>
+            <div style="font-size:.7rem;color:#5f6368;margin-bottom:2px">Qtd *</div>
+            <input id="pitem-qtd" type="number" min="1" placeholder="0" style="width:100%;padding:5px 7px;border:1px solid #dadce0;border-radius:5px;font-size:.83rem">
+          </div>
+          <div>
+            <div style="font-size:.7rem;color:#5f6368;margin-bottom:2px">Preço unit. (R$) *</div>
+            <input id="pitem-preco" type="number" step="0.01" min="0.01" placeholder="0,00" style="width:100%;padding:5px 7px;border:1px solid #dadce0;border-radius:5px;font-size:.83rem">
+          </div>
+          <div>
+            <div style="font-size:.7rem;color:#5f6368;margin-bottom:2px">Desconto %</div>
+            <input id="pitem-desc" type="number" step="0.01" min="0" max="100" placeholder="0" value="0" style="width:100%;padding:5px 7px;border:1px solid #dadce0;border-radius:5px;font-size:.83rem">
+          </div>
+          <div style="display:flex;gap:4px;margin-top:14px">
+            <button class="btn bs bp" onclick="confirmarItemPed()" title="Confirmar">✓</button>
+            <button class="btn bs" onclick="$('ped-add-row').style.display='none'" title="Cancelar">✕</button>
+          </div>
+        </div>
+      </div>
+      <!-- Lista de itens adicionados -->
+      <div id="ped-itens-lista" style="max-height:240px;overflow-y:auto;border:1px solid #dadce0;border-radius:6px;min-height:44px">
+        <div class="empty" style="font-size:.82rem;padding:14px">Nenhum item adicionado. Clique em <strong>+ Adicionar Produto</strong>.</div>
+      </div>
+    </div>
+
     <div class="mfooter">
       <button class="btn" onclick="fechar('m-ped')">Cancelar</button>
-      <button class="btn bp" onclick="salvarPed()">Salvar</button>
+      <button class="btn bp" onclick="salvarPed()">Salvar Pedido</button>
     </div>
   </div>
 </div>
 
 <!-- ═══ MODAL NOTA FISCAL ══════════════════════════════════════ -->
 <div id="m-nf" class="overlay">
-  <div class="modal">
+  <div class="modal" style="width:740px;max-width:98vw">
     <h3>Nova Nota Fiscal</h3>
     <div class="fg"><label>Pedido *</label><select id="nf-ped"></select></div>
     <div class="grid2">
-      <div class="fg"><label>Número da NF *</label><input id="nf-num" placeholder="NF-2026-00004"></div>
+      <div class="fg"><label>Número da NF *</label><input id="nf-num" placeholder="NF-2026-00001"></div>
       <div class="fg"><label>Série</label><input id="nf-serie" value="001" maxlength="3"></div>
     </div>
-    <div style="display:flex;align-items:center;gap:10px;margin:10px 0 6px">
-      <label style="font-size:.78rem;font-weight:600;color:#5f6368">PRODUTOS DESTA NOTA</label>
-      <button class="btn bs" onclick="addItemNF()">+ Produto</button>
+    <div class="fg"><label>Chave de Acesso (44 dígitos numéricos — opcional)</label><input id="nf-chave" maxlength="44" placeholder="Deixe em branco se não houver"></div>
+
+    <div style="margin-top:14px;padding-top:12px;border-top:2px solid #e8f0fe">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <label style="font-size:.8rem;font-weight:700;color:#1a73e8;flex:1">📋 ITENS DA NOTA</label>
+        <span id="nf-total-label" style="font-size:.84rem;font-weight:700;color:#137333"></span>
+        <button class="btn bs bp" onclick="addItemNF()">+ Adicionar Produto</button>
+      </div>
+      <p class="note" style="margin-bottom:8px;font-size:.75rem">A nota pode cobrir apenas <strong>parte</strong> dos itens do pedido (recebimento parcial).</p>
+      <!-- Linha de entrada de novo item -->
+      <div id="nf-add-row" style="display:none;margin-bottom:8px">
+        <div style="display:grid;grid-template-columns:2fr 90px 120px 90px auto;gap:6px;align-items:center;padding:8px 10px;background:#e8f0fe;border-radius:8px;border:1px solid #c5d9fb">
+          <div>
+            <div style="font-size:.7rem;color:#5f6368;margin-bottom:2px">Produto *</div>
+            <select id="nf-item-prod" style="width:100%;padding:5px 7px;border:1px solid #dadce0;border-radius:5px;font-size:.83rem"></select>
+          </div>
+          <div>
+            <div style="font-size:.7rem;color:#5f6368;margin-bottom:2px">Qtd *</div>
+            <input id="nf-item-qtd" type="number" min="1" placeholder="0" style="width:100%;padding:5px 7px;border:1px solid #dadce0;border-radius:5px;font-size:.83rem">
+          </div>
+          <div>
+            <div style="font-size:.7rem;color:#5f6368;margin-bottom:2px">Preço unit. (R$) *</div>
+            <input id="nf-item-preco" type="number" step="0.01" min="0.01" placeholder="0,00" style="width:100%;padding:5px 7px;border:1px solid #dadce0;border-radius:5px;font-size:.83rem">
+          </div>
+          <div>
+            <div style="font-size:.7rem;color:#5f6368;margin-bottom:2px">Desconto %</div>
+            <input id="nf-item-desc" type="number" step="0.01" min="0" max="100" placeholder="0" value="0" style="width:100%;padding:5px 7px;border:1px solid #dadce0;border-radius:5px;font-size:.83rem">
+          </div>
+          <div style="display:flex;gap:4px;margin-top:14px">
+            <button class="btn bs bp" onclick="confirmarItemNF()" title="Confirmar">✓</button>
+            <button class="btn bs" onclick="$('nf-add-row').style.display='none'" title="Cancelar">✕</button>
+          </div>
+        </div>
+      </div>
+      <!-- Lista de itens -->
+      <div id="nf-itens" style="max-height:220px;overflow-y:auto;border:1px solid #dadce0;border-radius:6px;min-height:44px">
+        <div class="empty" style="font-size:.82rem;padding:14px">Nenhum item. Clique em <strong>+ Adicionar Produto</strong>.</div>
+      </div>
     </div>
-    <div id="nf-itens"></div>
+
     <div class="mfooter">
       <button class="btn" onclick="fechar('m-nf')">Cancelar</button>
       <button class="btn bp" onclick="salvarNF()">Emitir NF</button>
@@ -502,6 +603,30 @@ tr:hover td { background: #fafafa; }
   </div>
 </div>
 
+<!-- ═══ MODAL MOVIMENTAÇÃO ════════════════════════════════════ -->
+<div id="m-mov" class="overlay">
+  <div class="modal">
+    <h3>Nova Movimentação de Estoque</h3>
+    <div class="fg"><label>Produto *</label><select id="mov-prod"></select></div>
+    <div class="fg"><label>Filial *</label><select id="mov-fil"></select></div>
+    <div class="fg"><label>Funcionário Responsável *</label><select id="mov-func"></select></div>
+    <div class="grid2">
+      <div class="fg"><label>Tipo *</label>
+        <select id="mov-tipo">
+          <option value="ENTRADA">ENTRADA</option>
+          <option value="SAIDA">SAIDA</option>
+        </select>
+      </div>
+      <div class="fg"><label>Quantidade *</label><input id="mov-qtd" type="number" min="1"></div>
+    </div>
+    <div class="fg"><label>Motivo</label><input id="mov-motivo" placeholder="Ex: Compra de fornecedor, ajuste de inventário…"></div>
+    <div class="mfooter">
+      <button class="btn" onclick="fechar('m-mov')">Cancelar</button>
+      <button class="btn bp" onclick="salvarMov()">Registrar</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -543,6 +668,7 @@ const cargas = {
   notas:    carregarNotas,
   funcionarios: carregarFuncionarios,
   estoque:       carregarEstoque,
+  movimentacoes: carregarMovimentacoes,
   entregas:      carregarEntregas,
   veiculos:      carregarVeiculos,
   fornecimentos: carregarFornecimentos,
@@ -739,52 +865,171 @@ async function deletarProd(id) {
 // ═════════════════════════════════════════════════════════════
 // PEDIDOS
 // ═════════════════════════════════════════════════════════════
+let _pedProds = [];
+let _itensDraft = [];
+let _pedidoEditId = null;
+
 async function carregarPedidos() {
   const lista = await api('/api/pedidos');
   tabela('t-ped',
-    ['ID','Cliente','Filial','Data','Status','Total','Ações'],
+    ['ID','Cliente','Filial','Data','Previsão','Status','Total','Ações'],
     lista.map(p=>`<tr>
       <td>#${p.id_pedido}</td><td>${p.cliente}</td><td>${p.filial}</td>
-      <td>${dt(p.dt_pedido)}</td>
+      <td>${dt(p.dt_pedido)}</td><td>${dt(p.dt_prevista_entrega)}</td>
       <td><span class="badge ${statusCor[p.status]||'gr'}">${p.status}</span></td>
       <td>${brl(p.valor_total)}</td>
       <td>
+        <button class="btn bs" onclick="verItensPed(${p.id_pedido},'${p.cliente}')">📋 Itens</button>
         <button class="btn bs bp" onclick="editarPed(${p.id_pedido})">Editar</button>
-        <button class="btn bs br" onclick="deletarPed(${p.id_pedido})">Excluir</button>
+        <button class="btn bs br" onclick="deletarPed(${p.id_pedido})">Cancelar</button>
       </td>
     </tr>`)
   );
 }
 
 async function abrirPed() {
-  const [clis, fils] = await Promise.all([api('/api/empresas?tipo=cliente'), api('/api/filiais')]);
+  const [clis, fils, prods] = await Promise.all([
+    api('/api/empresas?tipo=cliente'), api('/api/filiais'), api('/api/produtos')
+  ]);
+  _pedProds = prods.filter(p=>p.ativo);
+  _itensDraft = [];
+  _pedidoEditId = null;
   $('ped-cli').innerHTML = clis.map(c=>`<option value="${c.id_empresa}">${c.razao_social}</option>`).join('');
   $('ped-fil').innerHTML = fils.map(f=>`<option value="${f.id_filial}">${f.nome}</option>`).join('');
+  $('pitem-prod').innerHTML = _pedProds.map(pr=>`<option value="${pr.id_produto}">${pr.codigo_sku} — ${pr.descricao}</option>`).join('');
   $('ped-id').value=''; $('m-ped-titulo').textContent='Novo Pedido';
   $('ped-status').value='AGUARDANDO'; $('ped-prev').value=''; $('ped-obs').value='';
+  $('ped-add-row').style.display='none';
+  renderizarItensPed();
   abrir('m-ped');
 }
 
 async function editarPed(id) {
   await abrirPed();
+  _pedidoEditId = id;
   const p = await api('/api/pedidos/'+id);
-  $('ped-id').value=p.id_pedido; $('m-ped-titulo').textContent='Editar Pedido';
+  $('ped-id').value=p.id_pedido;
+  $('m-ped-titulo').textContent='Editar Pedido #'+id;
   $('ped-cli').value=p.fk_empresa; $('ped-fil').value=p.fk_filial;
   $('ped-status').value=p.status; $('ped-obs').value=p.observacao||'';
   if (p.dt_prevista_entrega) $('ped-prev').value=p.dt_prevista_entrega.substring(0,10);
+  const itens = await api('/api/pedidos/'+id+'/itens');
+  _itensDraft = itens.map(it=>({
+    _saved: true,           // marca que já existe no banco
+    fk_pedido: it.fk_pedido,
+    fk_produto: it.fk_produto,
+    descricao: it.produto,
+    codigo_sku: it.codigo_sku,
+    quantidade: it.quantidade,
+    preco_unitario: it.preco_unitario,
+    desconto_pct: it.desconto_pct||0
+  }));
+  renderizarItensPed();
+}
+
+function renderizarItensPed() {
+  const lista = $('ped-itens-lista');
+  if (!_itensDraft.length) {
+    lista.innerHTML='<div class="empty" style="font-size:.82rem;padding:14px">Nenhum item. Clique em <strong>+ Adicionar Produto</strong>.</div>';
+    $('ped-total-label').textContent='';
+    return;
+  }
+  let total = 0;
+  lista.innerHTML = _itensDraft.map((it,idx)=>{
+    const subtotal = it.quantidade * it.preco_unitario * (1-(it.desconto_pct||0)/100);
+    total += subtotal;
+    return `<div style="display:grid;grid-template-columns:2fr 70px 110px 90px auto;gap:6px;align-items:center;padding:7px 10px;border-bottom:1px solid #f1f3f4;font-size:.82rem">
+      <span title="${it.descricao}"><strong>${it.codigo_sku}</strong> — ${it.descricao.length>32?it.descricao.substring(0,30)+'…':it.descricao}</span>
+      <span style="text-align:right">× ${it.quantidade}</span>
+      <span style="text-align:right">${brl(it.preco_unitario)}</span>
+      <span style="text-align:right;color:${it.desconto_pct?'#b06000':'#5f6368'}">${it.desconto_pct?it.desconto_pct+'% → ':''}${brl(subtotal)}</span>
+      <button class="btn bs br" onclick="removerItemDraft(${idx},${it.fk_pedido||0},${it.fk_produto})">✕</button>
+    </div>`;
+  }).join('');
+  $('ped-total-label').textContent='Total: '+brl(total);
+}
+
+function addItemPed() {
+  $('ped-add-row').style.display='block';
+  ['pitem-qtd','pitem-preco'].forEach(i=>$(i).value='');
+  $('pitem-desc').value='0';
+  $('pitem-prod').selectedIndex=0;
+  $('pitem-qtd').focus();
+}
+
+function confirmarItemPed() {
+  const prodId = +$('pitem-prod').value;
+  const qtd = +$('pitem-qtd').value;
+  const preco = +$('pitem-preco').value;
+  const desc = +($('pitem-desc').value||0);
+  if (!qtd || qtd <= 0) return toast('⚠ Informe a quantidade.');
+  if (!preco || preco <= 0) return toast('⚠ Informe o preço unitário.');
+  if (desc < 0 || desc > 100) return toast('⚠ Desconto deve ser entre 0 e 100%.');
+  // PK do banco é (fk_pedido, fk_produto) — não permite o mesmo produto duas vezes
+  if (_itensDraft.find(it=>it.fk_produto===prodId))
+    return toast('⚠ Este produto já está no pedido. Remova-o antes de adicionar novamente.');
+  const prod = _pedProds.find(p=>p.id_produto===prodId);
+  _itensDraft.push({
+    fk_produto: prodId,
+    descricao: prod ? prod.descricao : '—',
+    codigo_sku: prod ? prod.codigo_sku : '—',
+    quantidade: qtd,
+    preco_unitario: preco,
+    desconto_pct: desc
+  });
+  $('ped-add-row').style.display='none';
+  renderizarItensPed();
+}
+
+async function removerItemDraft(idx, fk_pedido, fk_produto) {
+  const item = _itensDraft[idx];
+  if (item._saved && _pedidoEditId) {
+    if (!confirm('Remover este item do pedido?')) return;
+    try {
+      await api('/api/pedidos/'+_pedidoEditId+'/itens/'+item.fk_produto, {method:'DELETE'});
+    } catch(e) { return; }
+  }
+  _itensDraft.splice(idx,1);
+  renderizarItensPed();
+  if (item._saved) toast('✅ Item removido.');
 }
 
 async function salvarPed() {
+  const fk_empresa = $('ped-cli').value;
+  const fk_filial  = $('ped-fil').value;
+  if (!fk_empresa) return toast('⚠ Selecione o cliente.');
+  if (!fk_filial)  return toast('⚠ Selecione a filial.');
   const d = {
-    fk_empresa:$('ped-cli').value, fk_filial:$('ped-fil').value,
-    status:$('ped-status').value, dt_prevista_entrega:$('ped-prev').value||null,
-    observacao:$('ped-obs').value,
+    fk_empresa, fk_filial,
+    status: $('ped-status').value,
+    dt_prevista_entrega: $('ped-prev').value||null,
+    observacao: $('ped-obs').value||null,
   };
   const id = $('ped-id').value;
   try {
-    await api(id?'/api/pedidos/'+id:'/api/pedidos',
-              {method:id?'PUT':'POST', body:JSON.stringify(d)});
-    fechar('m-ped'); carregarPedidos(); toast('✅ Pedido salvo!');
+    if (id) {
+      await api('/api/pedidos/'+id, {method:'PUT', body:JSON.stringify(d)});
+      const novos = _itensDraft.filter(it=>!it._saved);
+      for (const it of novos) {
+        await api('/api/pedidos/'+id+'/itens', {method:'POST', body:JSON.stringify({
+          fk_produto: it.fk_produto, quantidade: it.quantidade,
+          preco_unitario: it.preco_unitario, desconto_pct: it.desconto_pct||0
+        })});
+      }
+      fechar('m-ped'); carregarPedidos(); toast('✅ Pedido atualizado!');
+    } else {
+      await api('/api/pedidos', {method:'POST', body:JSON.stringify(d)});
+      const lista = await api('/api/pedidos');
+      const novo = lista[0];
+      for (const it of _itensDraft) {
+        await api('/api/pedidos/'+novo.id_pedido+'/itens', {method:'POST', body:JSON.stringify({
+          fk_produto: it.fk_produto, quantidade: it.quantidade,
+          preco_unitario: it.preco_unitario, desconto_pct: it.desconto_pct||0
+        })});
+      }
+      fechar('m-ped'); carregarPedidos();
+      toast('✅ Pedido #'+novo.id_pedido+' criado com '+_itensDraft.length+' item(s)!');
+    }
   } catch(e) {}
 }
 
@@ -796,10 +1041,58 @@ async function deletarPed(id) {
   } catch(e) {}
 }
 
+async function verItensPed(id, cliente) {
+  $('m-ped-itens-titulo').textContent = `Itens do Pedido #${id} — ${cliente}`;
+  $('m-ped-itens-corpo').innerHTML = '<div class="empty" style="padding:20px">Carregando…</div>';
+  abrir('m-ped-itens');
+  try {
+    const itens = await api('/api/pedidos/'+id+'/itens');
+    if (!itens.length) {
+      $('m-ped-itens-corpo').innerHTML = '<div class="empty" style="padding:20px">Nenhum item cadastrado neste pedido.</div>';
+      return;
+    }
+    let total = 0;
+    const linhas = itens.map(it => {
+      const subtotal = it.quantidade * it.preco_unitario * (1 - (it.desconto_pct||0) / 100);
+      total += subtotal;
+      return `<tr>
+        <td><code style="font-size:.78rem;background:#f1f3f4;padding:1px 5px;border-radius:3px">${it.codigo_sku}</code></td>
+        <td>${it.produto}</td>
+        <td style="text-align:center">${it.quantidade}</td>
+        <td style="text-align:right">${brl(it.preco_unitario)}</td>
+        <td style="text-align:center">${it.desconto_pct||0}%</td>
+        <td style="text-align:right"><strong>${brl(subtotal)}</strong></td>
+      </tr>`;
+    }).join('');
+    $('m-ped-itens-corpo').innerHTML = `
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>SKU</th><th>Produto</th>
+            <th style="text-align:center">Qtd</th>
+            <th style="text-align:right">Preço Unit.</th>
+            <th style="text-align:center">Desc.%</th>
+            <th style="text-align:right">Subtotal</th>
+          </tr></thead>
+          <tbody>${linhas}</tbody>
+          <tfoot>
+            <tr style="border-top:2px solid #dadce0">
+              <td colspan="5" style="text-align:right;font-weight:600;padding:10px;font-size:.85rem;color:#5f6368">TOTAL DO PEDIDO</td>
+              <td style="text-align:right;font-weight:700;padding:10px;font-size:.95rem;color:#137333">${brl(total)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>`;
+  } catch(e) {
+    $('m-ped-itens-corpo').innerHTML = '<div class="empty" style="padding:20px;color:#c5221f">Erro ao carregar itens.</div>';
+  }
+}
+
 // ═════════════════════════════════════════════════════════════
 // NOTAS FISCAIS
 // ═════════════════════════════════════════════════════════════
 let _prods = [];
+let _nfItens = [];  // itens em memória para a NF sendo criada
 
 async function carregarNotas() {
   const lista = await api('/api/notas');
@@ -810,7 +1103,7 @@ async function carregarNotas() {
       <td>#${n.fk_pedido}</td><td>${n.cliente}</td>
       <td>${dt(n.dt_emissao)}</td><td>${brl(n.valor_total)}</td>
       <td>
-        <button class="btn bs bp" onclick="verItens(${n.id_nf},'${n.numero_nf}')">Itens</button>
+        <button class="btn bs bp" onclick="verItens(${n.id_nf},'${n.numero_nf}')">Ver Itens</button>
         <button class="btn bs br" onclick="deletarNF(${n.id_nf})">Excluir</button>
       </td>
     </tr>`)
@@ -819,55 +1112,111 @@ async function carregarNotas() {
 
 async function abrirNF() {
   const [peds, prods] = await Promise.all([api('/api/pedidos'), api('/api/produtos')]);
-  _prods = prods;
+  _prods = prods.filter(p=>p.ativo);
+  _nfItens = [];
   $('nf-ped').innerHTML = peds.map(p=>`<option value="${p.id_pedido}">#${p.id_pedido} — ${p.cliente} (${p.status})</option>`).join('');
-  $('nf-num').value=''; $('nf-serie').value='001';
-  $('nf-itens').innerHTML=''; addItemNF();
+  $('nf-item-prod').innerHTML = _prods.map(pr=>`<option value="${pr.id_produto}">${pr.codigo_sku} — ${pr.descricao}</option>`).join('');
+  $('nf-num').value=''; $('nf-serie').value='001'; $('nf-chave').value='';
+  $('nf-add-row').style.display='none';
+  renderizarItensNF();
   abrir('m-nf');
 }
 
+function renderizarItensNF() {
+  const lista = $('nf-itens');
+  if (!_nfItens.length) {
+    lista.innerHTML='<div class="empty" style="font-size:.82rem;padding:14px">Nenhum item. Clique em <strong>+ Adicionar Produto</strong>.</div>';
+    $('nf-total-label').textContent='';
+    return;
+  }
+  let total = 0;
+  lista.innerHTML = _nfItens.map((it,idx)=>{
+    const subtotal = it.quantidade * it.preco_unitario * (1-(it.desconto_pct||0)/100);
+    total += subtotal;
+    return `<div style="display:grid;grid-template-columns:2fr 70px 110px 90px auto;gap:6px;align-items:center;padding:7px 10px;border-bottom:1px solid #f1f3f4;font-size:.82rem">
+      <span title="${it.descricao}"><strong>${it.codigo_sku}</strong> — ${it.descricao.length>32?it.descricao.substring(0,30)+'…':it.descricao}</span>
+      <span style="text-align:right">× ${it.quantidade}</span>
+      <span style="text-align:right">${brl(it.preco_unitario)}</span>
+      <span style="text-align:right;color:${it.desconto_pct?'#b06000':'#5f6368'}">${it.desconto_pct?it.desconto_pct+'% → ':''}${brl(subtotal)}</span>
+      <button class="btn bs br" onclick="_nfItens.splice(${idx},1);renderizarItensNF()">✕</button>
+    </div>`;
+  }).join('');
+  $('nf-total-label').textContent='Total: '+brl(total);
+}
+
 function addItemNF() {
-  const opts = _prods.map(p=>`<option value="${p.id_produto}">${p.codigo_sku} — ${p.descricao}</option>`).join('');
-  const row = document.createElement('div');
-  row.style.cssText='display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:6px;margin-bottom:6px;align-items:center';
-  row.innerHTML=`
-    <select style="padding:6px;border:1px solid #dadce0;border-radius:6px;font-size:.83rem">${opts}</select>
-    <input type="number" placeholder="Qtd" min="1" style="padding:6px;border:1px solid #dadce0;border-radius:6px;font-size:.83rem">
-    <input type="number" placeholder="Preço" step="0.01" style="padding:6px;border:1px solid #dadce0;border-radius:6px;font-size:.83rem">
-    <button class="btn bs br" onclick="this.parentElement.remove()">✕</button>`;
-  $('nf-itens').appendChild(row);
+  $('nf-add-row').style.display='block';
+  ['nf-item-qtd','nf-item-preco'].forEach(i=>$(i).value='');
+  $('nf-item-desc').value='0';
+  $('nf-item-prod').selectedIndex=0;
+  $('nf-item-qtd').focus();
+}
+
+function confirmarItemNF() {
+  const prodId = +$('nf-item-prod').value;
+  const qtd = +$('nf-item-qtd').value;
+  const preco = +$('nf-item-preco').value;
+  const desc = +($('nf-item-desc').value||0);
+  if (!qtd || qtd <= 0) return toast('⚠ Informe a quantidade.');
+  if (!preco || preco <= 0) return toast('⚠ Informe o preço unitário.');
+  if (desc < 0 || desc > 100) return toast('⚠ Desconto deve ser entre 0 e 100%.');
+  const prod = _prods.find(p=>p.id_produto===prodId);
+  _nfItens.push({
+    fk_produto: prodId,
+    descricao: prod ? prod.descricao : '—',
+    codigo_sku: prod ? prod.codigo_sku : '—',
+    quantidade: qtd,
+    preco_unitario: preco,
+    desconto_pct: desc
+  });
+  $('nf-add-row').style.display='none';
+  renderizarItensNF();
 }
 
 async function salvarNF() {
-  const itens = [...$('nf-itens').children].map(r=>{
-    const [sel,qtd,preco] = r.querySelectorAll('select,input');
-    return {fk_produto:sel.value, quantidade:qtd.value, preco_unitario:preco.value};
-  }).filter(it=>it.quantidade&&it.preco_unitario);
-  if (!itens.length) return toast('⚠ Adicione pelo menos um produto.');
-  if (!$('nf-num').value) return toast('⚠ Informe o número da NF.');
-  const d = {fk_pedido:$('nf-ped').value, numero_nf:$('nf-num').value,
-              serie:$('nf-serie').value, itens};
+  if (!$('nf-num').value.trim()) return toast('⚠ Informe o número da NF.');
+  if (!_nfItens.length) return toast('⚠ Adicione pelo menos um produto à nota.');
+  const chave = $('nf-chave').value.replace(/\D/g,'');
+  if (chave && chave.length !== 44) return toast('⚠ Chave de acesso deve ter exatamente 44 dígitos.');
+  const d = {
+    fk_pedido: $('nf-ped').value,
+    numero_nf: $('nf-num').value.trim(),
+    serie: $('nf-serie').value||'001',
+    chave_acesso: chave||null,
+    itens: _nfItens.map(it=>({
+      fk_produto: it.fk_produto,
+      quantidade: it.quantidade,
+      preco_unitario: it.preco_unitario,
+      desconto_pct: it.desconto_pct||0
+    }))
+  };
   try {
     await api('/api/notas', {method:'POST', body:JSON.stringify(d)});
-    fechar('m-nf'); carregarNotas(); toast('✅ Nota Fiscal emitida!');
+    fechar('m-nf'); carregarNotas();
+    toast('✅ Nota Fiscal emitida com '+_nfItens.length+' item(s)!');
   } catch(e) {}
 }
 
 async function verItens(id, num) {
   const itens = await api('/api/notas/'+id+'/itens');
-  const linhas = itens.map(it=>
-    `• ${it.produto} (${it.codigo_sku}) — Qtd: ${it.quantidade} × ${brl(it.preco_unitario)}`
-  ).join('\n');
-  alert(`Itens da ${num}:\n\n${linhas}`);
+  if (!itens.length) { alert(num+': nenhum item encontrado.'); return; }
+  let total = 0;
+  const linhas = itens.map(it=>{
+    const sub = it.quantidade * it.preco_unitario;
+    total += sub;
+    return `• ${it.produto} (${it.codigo_sku})\n  Qtd: ${it.quantidade} × ${brl(it.preco_unitario)} = ${brl(sub)}`;
+  }).join('\n\n');
+  alert(`Itens da NF ${num}:\n\n${linhas}\n\n──────\nTotal: ${brl(total)}`);
 }
 
 async function deletarNF(id) {
-  if (!confirm('Excluir esta Nota Fiscal?')) return;
+  if (!confirm('Excluir esta Nota Fiscal e todos os seus itens?')) return;
   try {
     await api('/api/notas/'+id, {method:'DELETE'});
     carregarNotas(); toast('✅ NF excluída.');
   } catch(e) {}
 }
+
 
 // ═════════════════════════════════════════════════════════════
 // FUNCIONÁRIOS
@@ -944,17 +1293,129 @@ async function deletarFunc(id) {
 async function carregarEstoque() {
   const lista = await api('/api/estoque');
   tabela('t-est',
-    ['Produto','Filial','Qtd Atual','Mínimo','Situação','Atualizado'],
+    ['Produto','SKU','Filial','Qtd Atual','Mínimo','Situação','Atualizado'],
     lista.map(e=>{
-      const baixo = e.quantidade <= e.estoque_minimo;
+      const baixo = e.estoque_minimo > 0 && e.quantidade <= e.estoque_minimo;
       return `<tr>
-        <td>${e.produto}</td><td>${e.filial}</td>
-        <td><strong>${e.quantidade}</strong></td><td>${e.estoque_minimo}</td>
+        <td>${e.produto}</td>
+        <td><code style="font-size:.78rem;background:#f1f3f4;padding:1px 5px;border-radius:3px">${e.codigo_sku||''}</code></td>
+        <td>${e.filial}</td>
+        <td><strong>${e.quantidade}</strong></td>
+        <td>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input type="number" min="0" value="${e.estoque_minimo}"
+              style="width:64px;padding:3px 5px;border:1px solid #dadce0;border-radius:4px;font-size:.82rem;text-align:center"
+              onchange="salvarMinimo(${e.fk_produto},${e.fk_filial},this)"
+              title="Clique e altere o valor para definir o mínimo">
+            <span style="font-size:.7rem;color:#5f6368">un.</span>
+          </div>
+        </td>
         <td><span class="badge ${baixo?'r':'g'}">${baixo?'⚠ Baixo':'OK'}</span></td>
         <td>${dt(e.dt_atualizacao)}</td>
       </tr>`;
     })
   );
+}
+
+async function salvarMinimo(fk_produto, fk_filial, input) {
+  const minimo = parseInt(input.value);
+  if (isNaN(minimo) || minimo < 0) {
+    toast('⚠ Mínimo deve ser um número inteiro maior ou igual a zero.');
+    input.value = input.defaultValue;
+    return;
+  }
+  try {
+    await api('/api/estoque/minimo', {method:'PUT', body:JSON.stringify({fk_produto, fk_filial, estoque_minimo: minimo})});
+    input.defaultValue = minimo;
+    toast('✅ Estoque mínimo atualizado.');
+    carregarEstoque();
+  } catch(e) {
+    input.value = input.defaultValue;
+  }
+}
+
+// ═════════════════════════════════════════════════════════════
+// MOVIMENTAÇÕES DE ESTOQUE
+// ═════════════════════════════════════════════════════════════
+async function carregarMovimentacoes() {
+  const lista = await api('/api/movimentacoes');
+  tabela('t-mov',
+    ['Data','Tipo','Produto','SKU','Filial','Responsável','Qtd','Motivo'],
+    lista.map(m=>`<tr>
+      <td>${dt(m.dt_movimentacao)}</td>
+      <td><span class="badge ${m.tipo==='ENTRADA'?'g':'r'}">${m.tipo}</span></td>
+      <td>${m.produto}</td><td>${m.codigo_sku}</td>
+      <td>${m.filial}</td><td>${m.funcionario}</td>
+      <td><strong>${m.tipo==='ENTRADA'?'+':'−'}${m.quantidade}</strong></td>
+      <td>${m.motivo||'—'}</td>
+    </tr>`)
+  );
+}
+
+async function abrirMov() {
+  const [prods, fils, funcs] = await Promise.all([
+    api('/api/produtos'), api('/api/filiais'), api('/api/funcionarios')
+  ]);
+  // filtra ativos com comparação solta (ativo pode vir como 1, true, "1")
+  const prodsAtivos = prods.filter(p => p.ativo == 1 || p.ativo === true);
+  const filsAtivos  = fils.filter(f => f.ativo == 1 || f.ativo === true);
+  const funcsAtivos = funcs.filter(f => f.ativo == 1 || f.ativo === true);
+
+  if (!prodsAtivos.length) return toast('⚠ Nenhum produto ativo cadastrado.');
+  if (!filsAtivos.length)  return toast('⚠ Nenhuma filial ativa cadastrada.');
+  if (!funcsAtivos.length) return toast('⚠ Nenhum funcionário ativo cadastrado.');
+
+  $('mov-prod').innerHTML = prodsAtivos.map(p=>`<option value="${p.id_produto}">${p.codigo_sku} — ${p.descricao}</option>`).join('');
+  $('mov-fil').innerHTML  = filsAtivos.map(f=>`<option value="${f.id_filial}">${f.nome}</option>`).join('');
+  $('mov-func').innerHTML = funcsAtivos.map(f=>`<option value="${f.id_funcionario}">${f.nome} (${f.cargo||''})</option>`).join('');
+  $('mov-qtd').value=''; $('mov-motivo').value=''; $('mov-tipo').value='ENTRADA';
+  abrir('m-mov');
+}
+
+async function salvarMov() {
+  const qtd = +$('mov-qtd').value;
+  if (!qtd || qtd <= 0) return toast('⚠ Informe uma quantidade maior que zero.');
+  const fk_produto    = +$('mov-prod').value;
+  const fk_filial     = +$('mov-fil').value;
+  const fk_funcionario= +$('mov-func').value;
+  if (!fk_produto)     return toast('⚠ Selecione um produto.');
+  if (!fk_filial)      return toast('⚠ Selecione uma filial.');
+  if (!fk_funcionario) return toast('⚠ Selecione um funcionário.');
+  const d = {
+    fk_produto, fk_filial, fk_funcionario,
+    tipo: $('mov-tipo').value,
+    quantidade: qtd,
+    motivo: $('mov-motivo').value.trim() || null
+  };
+  try {
+    await api('/api/movimentacoes', {method:'POST', body:JSON.stringify(d)});
+    fechar('m-mov');
+    await carregarMovimentacoes();
+    toast('✅ Movimentação registrada! Estoque atualizado pela trigger do banco.');
+  } catch(e) {}
+}
+
+async function diagMov() {
+  const el = $('mov-diag');
+  el.style.display='block';
+  el.innerHTML='<div class="note">🔍 Consultando banco…</div>';
+  try {
+    const r = await api('/api/movimentacoes/diagnostico');
+    el.innerHTML = `
+      <div class="note" style="background:#e6f4ea;border-color:#34a853;color:#137333">
+        <strong>✅ Banco acessível</strong><br>
+        Movimentações gravadas: <strong>${r.movimentacao_count}</strong> &nbsp;|&nbsp;
+        Registros de estoque: <strong>${r.estoque_count}</strong><br>
+        ${r.estoque_count===0 ? '<span style="color:#c5221f">⚠ ESTOQUE vazio — trigger pode não ter rodado ou não há movimentações ainda.</span>' : ''}
+        ${r.movimentacao_count>0 && r.estoque_count===0 ? '<span style="color:#c5221f">⚠ Há movimentações mas ESTOQUE está zerado — verifique se a trigger trg_atualiza_estoque está ativa no banco.</span>' : ''}
+      </div>
+      <details style="margin-top:6px;font-size:.8rem">
+        <summary style="cursor:pointer;color:#1a73e8;font-weight:600">Ver amostra do estoque atual</summary>
+        <pre style="background:#f8f9fa;padding:8px;border-radius:4px;margin-top:6px;overflow:auto">${JSON.stringify(r.estoque_amostra, null, 2)}</pre>
+      </details>`;
+  } catch(e) {
+    el.innerHTML='<div class="note" style="background:#fce8e6;border-color:#ea4335;color:#c5221f">❌ Erro ao consultar banco. Verifique o console do Flask.</div>';
+  }
 }
 
 // ── Helper: valor de input (trim) ────────────────────────────
