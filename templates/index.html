@@ -144,8 +144,10 @@ tr:hover td { background: #fafafa; }
   background: #323232; color: #fff;
   padding: 10px 18px; border-radius: 6px; font-size: .86rem;
   opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 300;
+  max-width: 420px; word-break: break-word;
 }
-#toast.on { opacity: 1; }
+#toast.on  { opacity: 1; }
+#toast.err { background: #c5221f; }
 </style>
 </head>
 <body>
@@ -505,18 +507,26 @@ tr:hover td { background: #fafafa; }
 <script>
 // ── Utilitários ──────────────────────────────────────────────
 const $ = id => document.getElementById(id);
-const api = (url, opts={}) =>
-  fetch(url, {headers:{'Content-Type':'application/json'}, ...opts})
-    .then(async r => {
-      const txt = await r.text();
-      const data = txt ? JSON.parse(txt) : null;
-      if (!r.ok) throw new Error(data?.detalhe || 'Erro na requisição');
-      return data;
-    });
+const api = async (url, opts={}) => {
+  const r = await fetch(url, {headers:{'Content-Type':'application/json'}, ...opts});
+  const txt = await r.text();
+  const data = txt ? JSON.parse(txt) : null;
+  if (!r.ok) {
+    const msg = data?.detalhe || 'Erro na requisição.';
+    toast('❌ ' + msg, 'erro');
+    throw new Error(msg);
+  }
+  return data;
+};
 
-function toast(msg) {
-  const t = $('toast'); t.textContent = msg; t.classList.add('on');
-  setTimeout(()=>t.classList.remove('on'), 2600);
+function toast(msg, tipo='ok') {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.remove('err');
+  if (tipo === 'erro') t.classList.add('err');
+  t.classList.add('on');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(()=>{ t.classList.remove('on'); t.classList.remove('err'); }, tipo==='erro' ? 4500 : 2600);
 }
 function fechar(id) { $(id).classList.remove('on'); }
 function abrir(id)  { $(id).classList.add('on'); }
@@ -635,16 +645,20 @@ async function salvarEmp() {
   };
   if (!d.razao_social||!d.cnpj) return toast('⚠ Preencha os campos obrigatórios.');
   const id = $('e-id').value;
-  await api(id?'/api/empresas/'+id:'/api/empresas',
-            {method:id?'PUT':'POST', body:JSON.stringify(d)});
-  fechar('m-emp'); carregarEmpresas('todos');
-  toast('✅ Empresa salva!');
+  try {
+    await api(id?'/api/empresas/'+id:'/api/empresas',
+              {method:id?'PUT':'POST', body:JSON.stringify(d)});
+    fechar('m-emp'); carregarEmpresas('todos');
+    toast('✅ Empresa salva!');
+  } catch(e) {}
 }
 
 async function deletarEmp(id) {
   if (!confirm('Desativar esta empresa?')) return;
-  await api('/api/empresas/'+id, {method:'DELETE'});
-  carregarEmpresas('todos'); toast('✅ Empresa desativada.');
+  try {
+    await api('/api/empresas/'+id, {method:'DELETE'});
+    carregarEmpresas('todos'); toast('✅ Empresa desativada.');
+  } catch(e) {}
 }
 
 // ═════════════════════════════════════════════════════════════
@@ -685,25 +699,34 @@ async function editarProd(id) {
 }
 
 async function salvarProd() {
-  if (+$('p-venda').value <= +$('p-custo').value)
-    return toast('⚠ Preço de venda deve ser maior que o custo.');
+  const custo = +$('p-custo').value;
+  const venda = +$('p-venda').value;
+  const peso  = $('p-peso').value;
   const d = {
     descricao:e($('p-desc')), codigo_sku:e($('p-sku')),
     unidade_medida:$('p-unid').value, fk_categoria:$('p-cat').value,
     preco_custo:$('p-custo').value, preco_venda:$('p-venda').value,
-    peso_kg:$('p-peso').value||null, ativo:1,
+    peso_kg:peso||null, ativo:1,
   };
   if (!d.descricao||!d.codigo_sku) return toast('⚠ Preencha os campos obrigatórios.');
+  if (!$('p-custo').value || custo <= 0) return toast('⚠ Preço de custo deve ser maior que zero.');
+  if (!$('p-venda').value || venda <= 0) return toast('⚠ Preço de venda deve ser maior que zero.');
+  if (venda <= custo) return toast('⚠ Preço de venda deve ser maior que o preço de custo.');
+  if (peso && +peso <= 0) return toast('⚠ Peso deve ser maior que zero.');
   const id = $('p-id').value;
-  await api(id?'/api/produtos/'+id:'/api/produtos',
-            {method:id?'PUT':'POST', body:JSON.stringify(d)});
-  fechar('m-prod'); carregarProdutos(); toast('✅ Produto salvo!');
+  try {
+    await api(id?'/api/produtos/'+id:'/api/produtos',
+              {method:id?'PUT':'POST', body:JSON.stringify(d)});
+    fechar('m-prod'); carregarProdutos(); toast('✅ Produto salvo!');
+  } catch(e) {}
 }
 
 async function deletarProd(id) {
   if (!confirm('Desativar este produto?')) return;
-  await api('/api/produtos/'+id, {method:'DELETE'});
-  carregarProdutos(); toast('✅ Produto desativado.');
+  try {
+    await api('/api/produtos/'+id, {method:'DELETE'});
+    carregarProdutos(); toast('✅ Produto desativado.');
+  } catch(e) {}
 }
 
 // ═════════════════════════════════════════════════════════════
@@ -751,15 +774,19 @@ async function salvarPed() {
     observacao:$('ped-obs').value,
   };
   const id = $('ped-id').value;
-  await api(id?'/api/pedidos/'+id:'/api/pedidos',
-            {method:id?'PUT':'POST', body:JSON.stringify(d)});
-  fechar('m-ped'); carregarPedidos(); toast('✅ Pedido salvo!');
+  try {
+    await api(id?'/api/pedidos/'+id:'/api/pedidos',
+              {method:id?'PUT':'POST', body:JSON.stringify(d)});
+    fechar('m-ped'); carregarPedidos(); toast('✅ Pedido salvo!');
+  } catch(e) {}
 }
 
 async function deletarPed(id) {
   if (!confirm('Cancelar este pedido?')) return;
-  await api('/api/pedidos/'+id, {method:'DELETE'});
-  carregarPedidos(); toast('✅ Pedido cancelado.');
+  try {
+    await api('/api/pedidos/'+id, {method:'DELETE'});
+    carregarPedidos(); toast('✅ Pedido cancelado.');
+  } catch(e) {}
 }
 
 // ═════════════════════════════════════════════════════════════
@@ -813,8 +840,10 @@ async function salvarNF() {
   if (!$('nf-num').value) return toast('⚠ Informe o número da NF.');
   const d = {fk_pedido:$('nf-ped').value, numero_nf:$('nf-num').value,
               serie:$('nf-serie').value, itens};
-  await api('/api/notas', {method:'POST', body:JSON.stringify(d)});
-  fechar('m-nf'); carregarNotas(); toast('✅ Nota Fiscal emitida!');
+  try {
+    await api('/api/notas', {method:'POST', body:JSON.stringify(d)});
+    fechar('m-nf'); carregarNotas(); toast('✅ Nota Fiscal emitida!');
+  } catch(e) {}
 }
 
 async function verItens(id, num) {
@@ -827,8 +856,10 @@ async function verItens(id, num) {
 
 async function deletarNF(id) {
   if (!confirm('Excluir esta Nota Fiscal?')) return;
-  await api('/api/notas/'+id, {method:'DELETE'});
-  carregarNotas(); toast('✅ NF excluída.');
+  try {
+    await api('/api/notas/'+id, {method:'DELETE'});
+    carregarNotas(); toast('✅ NF excluída.');
+  } catch(e) {}
 }
 
 // ═════════════════════════════════════════════════════════════
@@ -870,21 +901,30 @@ async function editarFunc(id) {
 }
 
 async function salvarFunc() {
+  const cpfRaw = e($('f-cpf')).replace(/\D/g,'');
   const d = {
-    fk_filial:$('f-fil').value, nome:e($('f-nome')), cpf:e($('f-cpf')),
+    fk_filial:$('f-fil').value, nome:e($('f-nome')), cpf:cpfRaw,
     cargo:e($('f-cargo')), salario:$('f-sal').value, dt_admissao:$('f-adm').value, ativo:1,
   };
   if (!d.nome||!d.cpf) return toast('⚠ Preencha os campos obrigatórios.');
+  if (cpfRaw.length !== 11) return toast('⚠ CPF deve ter exatamente 11 dígitos.');
+  if (!d.cargo) return toast('⚠ Informe o cargo.');
+  if (!d.dt_admissao) return toast('⚠ Informe a data de admissão.');
+  if (!d.salario || +d.salario <= 0) return toast('⚠ Salário deve ser maior que zero.');
   const id = $('f-id').value;
-  await api(id?'/api/funcionarios/'+id:'/api/funcionarios',
-            {method:id?'PUT':'POST', body:JSON.stringify(d)});
-  fechar('m-func'); carregarFuncionarios(); toast('✅ Funcionário salvo!');
+  try {
+    await api(id?'/api/funcionarios/'+id:'/api/funcionarios',
+              {method:id?'PUT':'POST', body:JSON.stringify(d)});
+    fechar('m-func'); carregarFuncionarios(); toast('✅ Funcionário salvo!');
+  } catch(e) {}
 }
 
 async function deletarFunc(id) {
   if (!confirm('Desativar este funcionário?')) return;
-  await api('/api/funcionarios/'+id, {method:'DELETE'});
-  carregarFuncionarios(); toast('✅ Funcionário desativado.');
+  try {
+    await api('/api/funcionarios/'+id, {method:'DELETE'});
+    carregarFuncionarios(); toast('✅ Funcionário desativado.');
+  } catch(e) {}
 }
 
 // ═════════════════════════════════════════════════════════════
@@ -967,8 +1007,10 @@ async function salvarEnt() {
   };
   if (!d.dt_saida) return toast("⚠ Informe a data de saída.");
   const id = $("ent-id").value;
-  await api(id?"/api/entregas/"+id:"/api/entregas", {method:id?"PUT":"POST", body:JSON.stringify(d)});
-  fechar("m-ent"); carregarEntregas(); toast("✅ Entrega salva!");
+  try {
+    await api(id?"/api/entregas/"+id:"/api/entregas", {method:id?"PUT":"POST", body:JSON.stringify(d)});
+    fechar("m-ent"); carregarEntregas(); toast("✅ Entrega salva!");
+  } catch(e) {}
 }
 
 // ═════════════════════════════════════════════════════════════
@@ -1008,23 +1050,36 @@ async function editarVei(id) {
 }
 async function salvarVei() {
   const id = $("v-id").value;
+  const placa = $("v-placa").value.toUpperCase().replace(/\s/g,'');
+  const anoVal = $("v-ano").value;
   const d = {
     fk_filial:$("v-fil").value,
-    placa:$("v-placa").value.toUpperCase(),
+    placa,
     modelo:$("v-modelo").value,
     marca:$("v-marca").value||null,
-    ano:$("v-ano").value||null,
+    ano:anoVal||null,
     capacidade_kg:$("v-cap").value||null,
     ativo:1
   };
   if (!d.placa||!d.modelo) return toast("⚠ Preencha placa e modelo.");
-  await api(id?"/api/veiculos/"+id:"/api/veiculos", {method:id?"PUT":"POST", body:JSON.stringify(d)});
-  fechar("m-vei"); carregarVeiculos(); toast("✅ Veículo salvo!");
+  if (placa.length < 7) return toast("⚠ Placa deve ter no mínimo 7 caracteres.");
+  if (anoVal) {
+    const ano = parseInt(anoVal);
+    if (isNaN(ano) || ano < 1900 || ano > 2100 || String(anoVal).length !== 4)
+      return toast("⚠ Ano inválido. Informe 4 dígitos entre 1900 e 2100.");
+  }
+  if (d.capacidade_kg && +d.capacidade_kg <= 0) return toast("⚠ Capacidade deve ser maior que zero.");
+  try {
+    await api(id?"/api/veiculos/"+id:"/api/veiculos", {method:id?"PUT":"POST", body:JSON.stringify(d)});
+    fechar("m-vei"); carregarVeiculos(); toast("✅ Veículo salvo!");
+  } catch(e) {}
 }
 async function desativarVei(id) {
   if (!confirm("Desativar este veículo?")) return;
-  await api("/api/veiculos/"+id, {method:"DELETE"});
-  carregarVeiculos(); toast("✅ Veículo desativado.");
+  try {
+    await api("/api/veiculos/"+id, {method:"DELETE"});
+    carregarVeiculos(); toast("✅ Veículo desativado.");
+  } catch(e) {}
 }
 
 // ═════════════════════════════════════════════════════════════
@@ -1076,11 +1131,24 @@ async function editarFil(id) {
 }
 async function salvarFil() {
   const id = $("fl-id").value;
-  const d = {nome:$("fl-nome").value, cnpj:$("fl-cnpj").value, telefone:$("fl-tel").value||null, dt_inauguracao:$("fl-inau").value, logradouro:$("fl-logradouro").value, bairro:$("fl-bairro").value, cep:$("fl-cep").value, cidade:$("fl-cidade").value, estado:$("fl-estado").value.toUpperCase()};
+  const telRaw = $("fl-tel").value.replace(/\D/g,'');
+  const d = {
+    nome:$("fl-nome").value, cnpj:$("fl-cnpj").value,
+    telefone:telRaw||null,
+    dt_inauguracao:$("fl-inau").value,
+    logradouro:$("fl-logradouro").value, bairro:$("fl-bairro").value,
+    cep:$("fl-cep").value, cidade:$("fl-cidade").value,
+    estado:$("fl-estado").value.toUpperCase()
+  };
   if (!d.nome||!d.cnpj) return toast("⚠ Preencha os campos obrigatórios.");
-  if (id) await api("/api/filiais/"+id, {method:"PUT", body:JSON.stringify(d)});
-  else    await api("/api/filiais",     {method:"POST",body:JSON.stringify(d)});
-  fechar("m-fil"); carregarFiliaisCompleto(); toast("✅ Filial salva!");
+  if (!d.dt_inauguracao) return toast("⚠ Informe a data de inauguração.");
+  if (telRaw && (telRaw.length < 10 || telRaw.length > 11))
+    return toast("⚠ Telefone deve ter 10 ou 11 dígitos (com DDD).");
+  try {
+    if (id) await api("/api/filiais/"+id, {method:"PUT", body:JSON.stringify(d)});
+    else    await api("/api/filiais",     {method:"POST",body:JSON.stringify(d)});
+    fechar("m-fil"); carregarFiliaisCompleto(); toast("✅ Filial salva!");
+  } catch(e) {}
 }
 
 // ═════════════════════════════════════════════════════════════

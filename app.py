@@ -10,9 +10,6 @@ import pyodbc
 
 app = Flask(__name__)
 
-# ─────────────────────────────────────────────────
-# CONFIGURAÇÃO — edite aqui com seus dados
-# ─────────────────────────────────────────────────
 DB_SERVER   = os.environ.get("DB_SERVER",   "localhost\\SQLEXPRESS")
 DB_NAME     = os.environ.get("DB_NAME",     "DistribuiMax")
 DB_USER     = os.environ.get("DB_USER",     "sa")
@@ -33,8 +30,20 @@ def to_list(cursor):
     cols = [c[0] for c in cursor.description]
     return [dict(zip(cols, row)) for row in cursor.fetchall()]
 
+def erro_banco(e):
+    """Extrai mensagem legível de erros do pyodbc/SQL Server."""
+    msg = str(e)
+    # Tenta pegar só a parte descritiva da mensagem do SQL Server
+    if "[SQL Server]" in msg:
+        msg = msg.split("[SQL Server]")[-1].strip()
+    elif "HY000" in msg or "23000" in msg:
+        msg = msg.split("\n")[0].strip()
+    # Remove códigos de estado ODBC do início
+    import re
+    msg = re.sub(r"^\([A-Z0-9]+\)\s*", "", msg)
+    return msg[:300]  # limita tamanho
+
 def exec_sp(sp, params=[]):
-    # executa uma stored procedure que não retorna dados (INSERT, UPDATE, DELETE)
     with get_conn() as conn:
         cur = conn.cursor()
         placeholders = ','.join(['?'] * len(params))
@@ -43,7 +52,6 @@ def exec_sp(sp, params=[]):
         conn.commit()
 
 def query_sp(sp, params=[]):
-    # executa uma stored procedure que retorna dados (SELECT)
     with get_conn() as conn:
         cur = conn.cursor()
         placeholders = ','.join(['?'] * len(params))
@@ -52,14 +60,12 @@ def query_sp(sp, params=[]):
         return to_list(cur)
 
 def query_sql(sql, params=[]):
-    # usada apenas para buscar um registro antes de chamar uma SP de atualização
     with get_conn() as conn:
         cur = conn.cursor()
         cur.execute(sql, params)
         return to_list(cur)
 
 def execute_sql(sql, params=[]):
-    # usada apenas em tabelas auxiliares que não possuem SP própria no SQL final
     with get_conn() as conn:
         cur = conn.cursor()
         cur.execute(sql, params)
@@ -86,392 +92,585 @@ def health():
 # ═════════════════════════════════════════════════
 @app.route("/api/empresas")
 def listar_empresas():
-    tipo = request.args.get("tipo", "todos")
-    return jsonify(query_sp("sp_listar_empresas", [tipo]))
+    try:
+        tipo = request.args.get("tipo", "todos")
+        return jsonify(query_sp("sp_listar_empresas", [tipo]))
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 500
 
 @app.route("/api/empresas/<int:id>")
 def get_empresa(id):
-    r = query_sql("SELECT * FROM EMPRESA WHERE id_empresa=?", [id])
-    return jsonify(r[0]) if r else ("", 404)
+    try:
+        r = query_sql("SELECT * FROM EMPRESA WHERE id_empresa=?", [id])
+        return jsonify(r[0]) if r else ("", 404)
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 500
 
 @app.route("/api/empresas", methods=["POST"])
 def criar_empresa():
-    d = request.json
-    exec_sp("sp_inserir_empresa", [
-        d["razao_social"], d["cnpj"], d.get("telefone"), d.get("email"),
-        d.get("contato_responsavel"), int(d.get("is_cliente", 0)),
-        int(d.get("is_fornecedor", 0)), d.get("limite_credito", 0),
-        d["logradouro"], d["bairro"], d["cep"], d["cidade"], d["estado"]
-    ])
-    return jsonify({"ok": True}), 201
+    try:
+        d = request.json
+        exec_sp("sp_inserir_empresa", [
+            d["razao_social"], d["cnpj"], d.get("telefone"), d.get("email"),
+            d.get("contato_responsavel"), int(d.get("is_cliente", 0)),
+            int(d.get("is_fornecedor", 0)), d.get("limite_credito", 0),
+            d["logradouro"], d["bairro"], d["cep"], d["cidade"], d["estado"]
+        ])
+        return jsonify({"ok": True}), 201
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 400
 
 @app.route("/api/empresas/<int:id>", methods=["PUT"])
 def editar_empresa(id):
-    d = request.json
-    exec_sp("sp_atualizar_empresa", [
-        id, d["razao_social"], d["cnpj"], d.get("telefone"), d.get("email"),
-        d.get("contato_responsavel"), int(d.get("is_cliente", 0)),
-        int(d.get("is_fornecedor", 0)), d.get("limite_credito", 0),
-        d["logradouro"], d["bairro"], d["cep"], d["cidade"], d["estado"],
-        int(d.get("ativo", 1))
-    ])
-    return jsonify({"ok": True})
+    try:
+        d = request.json
+        exec_sp("sp_atualizar_empresa", [
+            id, d["razao_social"], d["cnpj"], d.get("telefone"), d.get("email"),
+            d.get("contato_responsavel"), int(d.get("is_cliente", 0)),
+            int(d.get("is_fornecedor", 0)), d.get("limite_credito", 0),
+            d["logradouro"], d["bairro"], d["cep"], d["cidade"], d["estado"],
+            int(d.get("ativo", 1))
+        ])
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 400
 
 @app.route("/api/empresas/<int:id>", methods=["DELETE"])
 def deletar_empresa(id):
-    r = query_sql("SELECT * FROM EMPRESA WHERE id_empresa=?", [id])
-    if not r:
-        return ("", 404)
-
-    e = r[0]
-    exec_sp("sp_atualizar_empresa", [
-        id, e["razao_social"], e["cnpj"], e.get("telefone"), e.get("email"),
-        e.get("contato_responsavel"), int(e.get("is_cliente", 0)),
-        int(e.get("is_fornecedor", 0)), e.get("limite_credito", 0),
-        e["logradouro"], e["bairro"], e["cep"], e["cidade"], e["estado"], 0
-    ])
-    return jsonify({"ok": True})
+    try:
+        r = query_sql("SELECT * FROM EMPRESA WHERE id_empresa=?", [id])
+        if not r:
+            return jsonify({"ok": False, "detalhe": "Empresa não encontrada."}), 404
+        e = r[0]
+        exec_sp("sp_atualizar_empresa", [
+            id, e["razao_social"], e["cnpj"], e.get("telefone"), e.get("email"),
+            e.get("contato_responsavel"), int(e.get("is_cliente", 0)),
+            int(e.get("is_fornecedor", 0)), e.get("limite_credito", 0),
+            e["logradouro"], e["bairro"], e["cep"], e["cidade"], e["estado"], 0
+        ])
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 400
 
 # ═════════════════════════════════════════════════
 # PRODUTOS
 # ═════════════════════════════════════════════════
 @app.route("/api/produtos")
 def listar_produtos():
-    return jsonify(query_sp("sp_listar_produtos"))
+    try:
+        return jsonify(query_sp("sp_listar_produtos"))
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 500
 
 @app.route("/api/produtos/<int:id>")
 def get_produto(id):
-    r = query_sql("SELECT * FROM PRODUTO WHERE id_produto=?", [id])
-    return jsonify(r[0]) if r else ("", 404)
+    try:
+        r = query_sql("SELECT * FROM PRODUTO WHERE id_produto=?", [id])
+        return jsonify(r[0]) if r else ("", 404)
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 500
 
 @app.route("/api/produtos", methods=["POST"])
 def criar_produto():
-    d = request.json
-    exec_sp("sp_inserir_produto", [
-        d["fk_categoria"], d["codigo_sku"], d["descricao"],
-        d["unidade_medida"], d["preco_custo"], d["preco_venda"], d.get("peso_kg")
-    ])
-    return jsonify({"ok": True}), 201
+    try:
+        d = request.json
+        custo = float(d.get("preco_custo") or 0)
+        venda = float(d.get("preco_venda") or 0)
+        peso  = d.get("peso_kg")
+        if custo <= 0:
+            return jsonify({"ok": False, "detalhe": "Preço de custo deve ser maior que zero."}), 400
+        if venda <= 0:
+            return jsonify({"ok": False, "detalhe": "Preço de venda deve ser maior que zero."}), 400
+        if venda <= custo:
+            return jsonify({"ok": False, "detalhe": "Preço de venda deve ser maior que o preço de custo."}), 400
+        if peso is not None and float(peso) <= 0:
+            return jsonify({"ok": False, "detalhe": "Peso deve ser maior que zero."}), 400
+        exec_sp("sp_inserir_produto", [
+            d["fk_categoria"], d["codigo_sku"], d["descricao"],
+            d["unidade_medida"], custo, venda, peso or None
+        ])
+        return jsonify({"ok": True}), 201
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 400
 
 @app.route("/api/produtos/<int:id>", methods=["PUT"])
 def editar_produto(id):
-    d = request.json
-    exec_sp("sp_atualizar_produto", [
-        id, d["fk_categoria"], d["codigo_sku"], d["descricao"],
-        d["unidade_medida"], d["preco_custo"], d["preco_venda"],
-        d.get("peso_kg"), int(d.get("ativo", 1))
-    ])
-    return jsonify({"ok": True})
+    try:
+        d = request.json
+        custo = float(d.get("preco_custo") or 0)
+        venda = float(d.get("preco_venda") or 0)
+        peso  = d.get("peso_kg")
+        if custo <= 0:
+            return jsonify({"ok": False, "detalhe": "Preço de custo deve ser maior que zero."}), 400
+        if venda <= 0:
+            return jsonify({"ok": False, "detalhe": "Preço de venda deve ser maior que zero."}), 400
+        if venda <= custo:
+            return jsonify({"ok": False, "detalhe": "Preço de venda deve ser maior que o preço de custo."}), 400
+        if peso is not None and float(peso) <= 0:
+            return jsonify({"ok": False, "detalhe": "Peso deve ser maior que zero."}), 400
+        exec_sp("sp_atualizar_produto", [
+            id, d["fk_categoria"], d["codigo_sku"], d["descricao"],
+            d["unidade_medida"], custo, venda,
+            peso or None, int(d.get("ativo", 1))
+        ])
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 400
 
 @app.route("/api/produtos/<int:id>", methods=["DELETE"])
 def deletar_produto(id):
-    r = query_sql("SELECT * FROM PRODUTO WHERE id_produto=?", [id])
-    if not r:
-        return ("", 404)
-
-    p = r[0]
-    exec_sp("sp_atualizar_produto", [
-        id, p["fk_categoria"], p["codigo_sku"], p["descricao"],
-        p["unidade_medida"], p["preco_custo"], p["preco_venda"],
-        p.get("peso_kg"), 0
-    ])
-    return jsonify({"ok": True})
+    try:
+        r = query_sql("SELECT * FROM PRODUTO WHERE id_produto=?", [id])
+        if not r:
+            return jsonify({"ok": False, "detalhe": "Produto não encontrado."}), 404
+        p = r[0]
+        exec_sp("sp_atualizar_produto", [
+            id, p["fk_categoria"], p["codigo_sku"], p["descricao"],
+            p["unidade_medida"], p["preco_custo"], p["preco_venda"],
+            p.get("peso_kg"), 0
+        ])
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 400
 
 # ═════════════════════════════════════════════════
 # PEDIDOS
 # ═════════════════════════════════════════════════
 @app.route("/api/pedidos")
 def listar_pedidos():
-    return jsonify(query_sp("sp_listar_pedidos"))
+    try:
+        return jsonify(query_sp("sp_listar_pedidos"))
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 500
 
 @app.route("/api/pedidos/<int:id>")
 def get_pedido(id):
-    # PEDIDO agora tem fk_empresa e fk_filial em vez de id_empresa e id_filial
-    r = query_sql(
-        "SELECT p.*,e.razao_social AS cliente,f.nome AS filial "
-        "FROM PEDIDO p JOIN EMPRESA e ON e.id_empresa=p.fk_empresa "
-        "JOIN FILIAL f ON f.id_filial=p.fk_filial WHERE p.id_pedido=?",
-        [id]
-    )
-    return jsonify(r[0]) if r else ("", 404)
+    try:
+        r = query_sql(
+            "SELECT p.*,e.razao_social AS cliente,f.nome AS filial "
+            "FROM PEDIDO p JOIN EMPRESA e ON e.id_empresa=p.fk_empresa "
+            "JOIN FILIAL f ON f.id_filial=p.fk_filial WHERE p.id_pedido=?",
+            [id]
+        )
+        return jsonify(r[0]) if r else ("", 404)
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 500
 
 @app.route("/api/pedidos", methods=["POST"])
 def criar_pedido():
-    d = request.json
-    exec_sp("sp_inserir_pedido", [
-        d["fk_empresa"], d["fk_filial"], d.get("dt_prevista_entrega"),
-        d.get("status", "AGUARDANDO"), d.get("observacao")
-    ])
-    return jsonify({"ok": True}), 201
+    try:
+        d = request.json
+        exec_sp("sp_inserir_pedido", [
+            d["fk_empresa"], d["fk_filial"], d.get("dt_prevista_entrega"),
+            d.get("status", "AGUARDANDO"), d.get("observacao")
+        ])
+        return jsonify({"ok": True}), 201
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 400
 
 @app.route("/api/pedidos/<int:id>", methods=["PUT"])
 def editar_pedido(id):
-    d = request.json
-    exec_sp("sp_atualizar_pedido", [
-        id, d["status"], d.get("dt_prevista_entrega"), d.get("observacao")
-    ])
-    return jsonify({"ok": True})
+    try:
+        d = request.json
+        exec_sp("sp_atualizar_pedido", [
+            id, d["status"], d.get("dt_prevista_entrega"), d.get("observacao")
+        ])
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 400
 
 @app.route("/api/pedidos/<int:id>", methods=["DELETE"])
 def deletar_pedido(id):
-    r = query_sql("SELECT dt_prevista_entrega, observacao FROM PEDIDO WHERE id_pedido=?", [id])
-    if not r:
-        return ("", 404)
-
-    p = r[0]
-    exec_sp("sp_atualizar_pedido", [
-        id, "CANCELADO", p.get("dt_prevista_entrega"), p.get("observacao")
-    ])
-    return jsonify({"ok": True})
+    try:
+        r = query_sql("SELECT dt_prevista_entrega, observacao FROM PEDIDO WHERE id_pedido=?", [id])
+        if not r:
+            return jsonify({"ok": False, "detalhe": "Pedido não encontrado."}), 404
+        p = r[0]
+        exec_sp("sp_atualizar_pedido", [
+            id, "CANCELADO", p.get("dt_prevista_entrega"), p.get("observacao")
+        ])
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 400
 
 # ═════════════════════════════════════════════════
 # NOTAS FISCAIS
 # ═════════════════════════════════════════════════
 @app.route("/api/notas")
 def listar_notas():
-    return jsonify(query_sp("sp_listar_notas"))
+    try:
+        return jsonify(query_sp("sp_listar_notas"))
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 500
 
 @app.route("/api/notas/<int:id>/itens")
 def itens_nota(id):
-    return jsonify(query_sp("sp_listar_itens_nota", [id]))
+    try:
+        return jsonify(query_sp("sp_listar_itens_nota", [id]))
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 500
 
 @app.route("/api/notas", methods=["POST"])
 def criar_nota():
-    d = request.json
-    with get_conn() as conn:
-        cur = conn.cursor()
-        cur.execute(
-            "EXEC sp_inserir_nota ?,?,?,?",
-            d["fk_pedido"], d["numero_nf"],
-            d.get("serie", "001"), d.get("chave_acesso")
-        )
-        id_nf = int(cur.fetchone()[0])
-
-        # ITEM_NOTA não possui SP própria — INSERT direto.
-        # A trigger trg_valor_nota recalcula o valor_total automaticamente.
-        # Colunas fk_nf e fk_produto pois são chaves estrangeiras em ITEM_NOTA.
-        for it in d.get("itens", []):
+    try:
+        d = request.json
+        with get_conn() as conn:
+            cur = conn.cursor()
             cur.execute(
-                "INSERT INTO ITEM_NOTA (fk_nf,fk_produto,quantidade,preco_unitario,desconto_pct) VALUES (?,?,?,?,?)",
-                id_nf, it["fk_produto"], it["quantidade"], it["preco_unitario"],
-                it.get("desconto_pct", 0)
+                "EXEC sp_inserir_nota ?,?,?,?",
+                d["fk_pedido"], d["numero_nf"],
+                d.get("serie", "001"), d.get("chave_acesso")
             )
-
-        conn.commit()
-
-    return jsonify({"ok": True, "id_nf": id_nf}), 201
+            id_nf = int(cur.fetchone()[0])
+            for it in d.get("itens", []):
+                cur.execute(
+                    "INSERT INTO ITEM_NOTA (fk_nf,fk_produto,quantidade,preco_unitario,desconto_pct) VALUES (?,?,?,?,?)",
+                    id_nf, it["fk_produto"], it["quantidade"], it["preco_unitario"],
+                    it.get("desconto_pct", 0)
+                )
+            conn.commit()
+        return jsonify({"ok": True, "id_nf": id_nf}), 201
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 400
 
 @app.route("/api/notas/<int:id>", methods=["DELETE"])
 def deletar_nota(id):
-    exec_sp("sp_deletar_nota", [id])
-    return jsonify({"ok": True})
+    try:
+        exec_sp("sp_deletar_nota", [id])
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 400
 
 # ═════════════════════════════════════════════════
 # FUNCIONÁRIOS
 # ═════════════════════════════════════════════════
 @app.route("/api/funcionarios")
 def listar_funcionarios():
-    return jsonify(query_sp("sp_listar_funcionarios"))
+    try:
+        return jsonify(query_sp("sp_listar_funcionarios"))
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 500
 
 @app.route("/api/funcionarios/<int:id>")
 def get_funcionario(id):
-    r = query_sql("SELECT * FROM FUNCIONARIO WHERE id_funcionario=?", [id])
-    return jsonify(r[0]) if r else ("", 404)
+    try:
+        r = query_sql("SELECT * FROM FUNCIONARIO WHERE id_funcionario=?", [id])
+        return jsonify(r[0]) if r else ("", 404)
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 500
 
 @app.route("/api/funcionarios", methods=["POST"])
 def criar_funcionario():
-    d = request.json
-    exec_sp("sp_inserir_funcionario", [
-        d["fk_filial"], d["nome"], d["cpf"],
-        d["cargo"], d["salario"], d["dt_admissao"]
-    ])
-    return jsonify({"ok": True}), 201
+    try:
+        d = request.json
+        cpf = ''.join(c for c in (d.get("cpf") or "") if c.isdigit())
+        if len(cpf) != 11:
+            return jsonify({"ok": False, "detalhe": "CPF deve ter exatamente 11 dígitos."}), 400
+        if not d.get("dt_admissao"):
+            return jsonify({"ok": False, "detalhe": "Informe a data de admissão."}), 400
+        if not d.get("salario") or float(d["salario"]) <= 0:
+            return jsonify({"ok": False, "detalhe": "Salário deve ser maior que zero."}), 400
+        exec_sp("sp_inserir_funcionario", [
+            d["fk_filial"], d["nome"], cpf,
+            d["cargo"], d["salario"], d["dt_admissao"]
+        ])
+        return jsonify({"ok": True}), 201
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 400
 
 @app.route("/api/funcionarios/<int:id>", methods=["PUT"])
 def editar_funcionario(id):
-    d = request.json
-    exec_sp("sp_atualizar_funcionario", [
-        id, d["nome"], d["cargo"], d["salario"], int(d.get("ativo", 1))
-    ])
-    return jsonify({"ok": True})
+    try:
+        d = request.json
+        if not d.get("salario") or float(d["salario"]) <= 0:
+            return jsonify({"ok": False, "detalhe": "Salário deve ser maior que zero."}), 400
+        exec_sp("sp_atualizar_funcionario", [
+            id, d["nome"], d["cargo"], d["salario"], int(d.get("ativo", 1))
+        ])
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 400
 
 @app.route("/api/funcionarios/<int:id>", methods=["DELETE"])
 def deletar_funcionario(id):
-    r = query_sql("SELECT * FROM FUNCIONARIO WHERE id_funcionario=?", [id])
-    if not r:
-        return ("", 404)
-
-    f = r[0]
-    exec_sp("sp_atualizar_funcionario", [
-        id, f["nome"], f["cargo"], f["salario"], 0
-    ])
-    return jsonify({"ok": True})
+    try:
+        r = query_sql("SELECT * FROM FUNCIONARIO WHERE id_funcionario=?", [id])
+        if not r:
+            return jsonify({"ok": False, "detalhe": "Funcionário não encontrado."}), 404
+        f = r[0]
+        exec_sp("sp_atualizar_funcionario", [
+            id, f["nome"], f["cargo"], f["salario"], 0
+        ])
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 400
 
 # ═════════════════════════════════════════════════
 # FILIAIS
 # ═════════════════════════════════════════════════
 @app.route("/api/filiais")
 def listar_filiais():
-    return jsonify(query_sp("sp_listar_filiais"))
+    try:
+        return jsonify(query_sp("sp_listar_filiais"))
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 500
 
 @app.route("/api/filiais/<int:id>")
 def get_filial(id):
-    r = query_sql("SELECT * FROM FILIAL WHERE id_filial=?", [id])
-    return jsonify(r[0]) if r else ("", 404)
+    try:
+        r = query_sql("SELECT * FROM FILIAL WHERE id_filial=?", [id])
+        return jsonify(r[0]) if r else ("", 404)
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 500
 
 @app.route("/api/filiais", methods=["POST"])
 def criar_filial():
-    d = request.json
-    exec_sp("sp_inserir_filial", [
-        d["nome"], d["cnpj"], d.get("telefone"), d["dt_inauguracao"],
-        d["logradouro"], d["bairro"], d["cep"], d["cidade"], d["estado"]
-    ])
-    return jsonify({"ok": True}), 201
+    try:
+        d = request.json
+        tel = ''.join(c for c in (d.get("telefone") or "") if c.isdigit())
+        if tel and (len(tel) < 10 or len(tel) > 11):
+            return jsonify({"ok": False, "detalhe": "Telefone deve ter 10 ou 11 dígitos (com DDD)."}), 400
+        if not d.get("dt_inauguracao"):
+            return jsonify({"ok": False, "detalhe": "Informe a data de inauguração."}), 400
+        exec_sp("sp_inserir_filial", [
+            d["nome"], d["cnpj"], tel or None, d["dt_inauguracao"],
+            d["logradouro"], d["bairro"], d["cep"], d["cidade"], d["estado"]
+        ])
+        return jsonify({"ok": True}), 201
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 400
 
 @app.route("/api/filiais/<int:id>", methods=["PUT"])
 def editar_filial(id):
-    d = request.json
-    exec_sp("sp_atualizar_filial", [
-        id, d["nome"], d["cnpj"], d.get("telefone"), d["dt_inauguracao"],
-        d["logradouro"], d["bairro"], d["cep"], d["cidade"], d["estado"],
-        int(d.get("ativo", 1))
-    ])
-    return jsonify({"ok": True})
+    try:
+        d = request.json
+        tel = ''.join(c for c in (d.get("telefone") or "") if c.isdigit())
+        if tel and (len(tel) < 10 or len(tel) > 11):
+            return jsonify({"ok": False, "detalhe": "Telefone deve ter 10 ou 11 dígitos (com DDD)."}), 400
+        if not d.get("dt_inauguracao"):
+            return jsonify({"ok": False, "detalhe": "Informe a data de inauguração."}), 400
+        exec_sp("sp_atualizar_filial", [
+            id, d["nome"], d["cnpj"], tel or None, d["dt_inauguracao"],
+            d["logradouro"], d["bairro"], d["cep"], d["cidade"], d["estado"],
+            int(d.get("ativo", 1))
+        ])
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 400
 
 @app.route("/api/filiais/<int:id>", methods=["DELETE"])
 def deletar_filial(id):
-    r = query_sql("SELECT * FROM FILIAL WHERE id_filial=?", [id])
-    if not r:
-        return ("", 404)
-
-    f = r[0]
-    exec_sp("sp_atualizar_filial", [
-        id, f["nome"], f["cnpj"], f.get("telefone"), f["dt_inauguracao"],
-        f["logradouro"], f["bairro"], f["cep"], f["cidade"], f["estado"], 0
-    ])
-    return jsonify({"ok": True})
+    try:
+        r = query_sql("SELECT * FROM FILIAL WHERE id_filial=?", [id])
+        if not r:
+            return jsonify({"ok": False, "detalhe": "Filial não encontrada."}), 404
+        f = r[0]
+        exec_sp("sp_atualizar_filial", [
+            id, f["nome"], f["cnpj"], f.get("telefone"), f["dt_inauguracao"],
+            f["logradouro"], f["bairro"], f["cep"], f["cidade"], f["estado"], 0
+        ])
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 400
 
 # ═════════════════════════════════════════════════
 # VEÍCULOS
 # ═════════════════════════════════════════════════
 @app.route("/api/veiculos")
 def listar_veiculos():
-    return jsonify(query_sp("sp_listar_veiculos"))
+    try:
+        return jsonify(query_sp("sp_listar_veiculos"))
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 500
 
 @app.route("/api/veiculos/<int:id>")
 def get_veiculo(id):
-    r = query_sql("SELECT * FROM VEICULO WHERE id_veiculo=?", [id])
-    return jsonify(r[0]) if r else ("", 404)
+    try:
+        r = query_sql("SELECT * FROM VEICULO WHERE id_veiculo=?", [id])
+        return jsonify(r[0]) if r else ("", 404)
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 500
 
 @app.route("/api/veiculos", methods=["POST"])
 def criar_veiculo():
-    d = request.json
-    exec_sp("sp_inserir_veiculo", [
-        d["fk_filial"], d["placa"], d["modelo"],
-        d.get("marca"), d.get("ano"), d.get("capacidade_kg")
-    ])
-    return jsonify({"ok": True}), 201
+    try:
+        d = request.json
+        placa = (d.get("placa") or "").strip()
+        if len(placa) < 7:
+            return jsonify({"ok": False, "detalhe": "Placa deve ter no mínimo 7 caracteres."}), 400
+        ano = d.get("ano")
+        if ano is not None:
+            try:
+                ano = int(ano)
+                if ano < 1900 or ano > 2100:
+                    return jsonify({"ok": False, "detalhe": "Ano deve estar entre 1900 e 2100."}), 400
+            except (ValueError, TypeError):
+                return jsonify({"ok": False, "detalhe": "Ano inválido."}), 400
+        cap = d.get("capacidade_kg")
+        if cap is not None and float(cap) <= 0:
+            return jsonify({"ok": False, "detalhe": "Capacidade deve ser maior que zero."}), 400
+        exec_sp("sp_inserir_veiculo", [
+            d["fk_filial"], placa, d["modelo"],
+            d.get("marca"), ano, cap
+        ])
+        return jsonify({"ok": True}), 201
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 400
 
 @app.route("/api/veiculos/<int:id>", methods=["PUT"])
 def editar_veiculo(id):
-    d = request.json
-    exec_sp("sp_atualizar_veiculo", [
-        id, d["fk_filial"], d["placa"], d["modelo"],
-        d.get("marca"), d.get("ano"), d.get("capacidade_kg"), int(d.get("ativo", 1))
-    ])
-    return jsonify({"ok": True})
+    try:
+        d = request.json
+        placa = (d.get("placa") or "").strip()
+        if len(placa) < 7:
+            return jsonify({"ok": False, "detalhe": "Placa deve ter no mínimo 7 caracteres."}), 400
+        ano = d.get("ano")
+        if ano is not None:
+            try:
+                ano = int(ano)
+                if ano < 1900 or ano > 2100:
+                    return jsonify({"ok": False, "detalhe": "Ano deve estar entre 1900 e 2100."}), 400
+            except (ValueError, TypeError):
+                return jsonify({"ok": False, "detalhe": "Ano inválido."}), 400
+        cap = d.get("capacidade_kg")
+        if cap is not None and float(cap) <= 0:
+            return jsonify({"ok": False, "detalhe": "Capacidade deve ser maior que zero."}), 400
+        exec_sp("sp_atualizar_veiculo", [
+            id, d["fk_filial"], placa, d["modelo"],
+            d.get("marca"), ano, cap, int(d.get("ativo", 1))
+        ])
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 400
 
 @app.route("/api/veiculos/<int:id>", methods=["DELETE"])
 def deletar_veiculo(id):
-    r = query_sql("SELECT * FROM VEICULO WHERE id_veiculo=?", [id])
-    if not r:
-        return ("", 404)
-
-    v = r[0]
-    exec_sp("sp_atualizar_veiculo", [
-        id, v["fk_filial"], v["placa"], v["modelo"],
-        v.get("marca"), v.get("ano"), v.get("capacidade_kg"), 0
-    ])
-    return jsonify({"ok": True})
+    try:
+        r = query_sql("SELECT * FROM VEICULO WHERE id_veiculo=?", [id])
+        if not r:
+            return jsonify({"ok": False, "detalhe": "Veículo não encontrado."}), 404
+        v = r[0]
+        exec_sp("sp_atualizar_veiculo", [
+            id, v["fk_filial"], v["placa"], v["modelo"],
+            v.get("marca"), v.get("ano"), v.get("capacidade_kg"), 0
+        ])
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 400
 
 # ═════════════════════════════════════════════════
 # ENTREGAS
 # ═════════════════════════════════════════════════
 @app.route("/api/entregas")
 def listar_entregas():
-    return jsonify(query_sp("sp_listar_entregas"))
+    try:
+        return jsonify(query_sp("sp_listar_entregas"))
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 500
 
 @app.route("/api/entregas/<int:id>")
 def get_entrega(id):
-    r = query_sql("SELECT * FROM ENTREGA WHERE id_entrega=?", [id])
-    return jsonify(r[0]) if r else ("", 404)
+    try:
+        r = query_sql("SELECT * FROM ENTREGA WHERE id_entrega=?", [id])
+        return jsonify(r[0]) if r else ("", 404)
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 500
 
 @app.route("/api/entregas", methods=["POST"])
 def criar_entrega():
-    d = request.json
-    exec_sp("sp_inserir_entrega", [
-        d["fk_pedido"], d["fk_funcionario"], d["fk_veiculo"],
-        d["dt_saida"], d.get("dt_chegada"),
-        d.get("status", "PENDENTE"), d.get("observacao")
-    ])
-    return jsonify({"ok": True}), 201
+    try:
+        d = request.json
+        exec_sp("sp_inserir_entrega", [
+            d["fk_pedido"], d["fk_funcionario"], d["fk_veiculo"],
+            d["dt_saida"], d.get("dt_chegada"),
+            d.get("status", "PENDENTE"), d.get("observacao")
+        ])
+        return jsonify({"ok": True}), 201
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 400
 
 @app.route("/api/entregas/<int:id>", methods=["PUT"])
 def editar_entrega(id):
-    d = request.json
-    exec_sp("sp_atualizar_entrega", [
-        id, d["fk_pedido"], d["fk_funcionario"], d["fk_veiculo"],
-        d["dt_saida"], d.get("dt_chegada"),
-        d["status"], d.get("observacao")
-    ])
-    return jsonify({"ok": True})
+    try:
+        d = request.json
+        exec_sp("sp_atualizar_entrega", [
+            id, d["fk_pedido"], d["fk_funcionario"], d["fk_veiculo"],
+            d["dt_saida"], d.get("dt_chegada"),
+            d["status"], d.get("observacao")
+        ])
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 400
 
 @app.route("/api/entregas/<int:id>", methods=["DELETE"])
 def deletar_entrega(id):
-    r = query_sql("SELECT * FROM ENTREGA WHERE id_entrega=?", [id])
-    if not r:
-        return ("", 404)
-
-    e = r[0]
-    exec_sp("sp_atualizar_entrega", [
-        id, e["fk_pedido"], e["fk_funcionario"], e["fk_veiculo"],
-        e["dt_saida"], e.get("dt_chegada"), "CANCELADA", e.get("observacao")
-    ])
-    return jsonify({"ok": True})
+    try:
+        r = query_sql("SELECT * FROM ENTREGA WHERE id_entrega=?", [id])
+        if not r:
+            return jsonify({"ok": False, "detalhe": "Entrega não encontrada."}), 404
+        e = r[0]
+        exec_sp("sp_atualizar_entrega", [
+            id, e["fk_pedido"], e["fk_funcionario"], e["fk_veiculo"],
+            e["dt_saida"], e.get("dt_chegada"), "CANCELADA", e.get("observacao")
+        ])
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 400
 
 # ═════════════════════════════════════════════════
 # AUXILIARES
 # ═════════════════════════════════════════════════
 @app.route("/api/categorias")
 def categorias():
-    return jsonify(query_sp("sp_listar_categorias"))
+    try:
+        return jsonify(query_sp("sp_listar_categorias"))
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 500
 
 @app.route("/api/estoque")
 def estoque():
-    return jsonify(query_sp("sp_listar_estoque"))
+    try:
+        return jsonify(query_sp("sp_listar_estoque"))
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 500
 
 # ═════════════════════════════════════════════════
 # RELATÓRIOS / VIEWS
 # ═════════════════════════════════════════════════
 @app.route("/api/relatorios/pedidos-clientes")
 def rel_pedidos_clientes():
-    return jsonify(query_sql("SELECT * FROM vw_pedidos_por_cliente"))
+    try:
+        return jsonify(query_sql("SELECT * FROM vw_pedidos_por_cliente"))
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 500
 
 @app.route("/api/relatorios/estoque-filial")
 def rel_estoque_filial():
-    return jsonify(query_sql("SELECT * FROM vw_posicao_estoque_filial"))
+    try:
+        return jsonify(query_sql("SELECT * FROM vw_posicao_estoque_filial"))
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 500
 
 @app.route("/api/relatorios/produtos-fornecedor")
 def rel_produtos_fornecedor():
-    return jsonify(query_sql("SELECT * FROM vw_produtos_por_fornecedor"))
+    try:
+        return jsonify(query_sql("SELECT * FROM vw_produtos_por_fornecedor"))
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 500
 
 @app.route("/api/relatorios/faturamento-cliente")
 def rel_faturamento_cliente():
-    return jsonify(query_sql("SELECT * FROM vw_faturamento_por_cliente"))
+    try:
+        return jsonify(query_sql("SELECT * FROM vw_faturamento_por_cliente"))
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 500
 
 @app.route("/api/relatorios/entregas-motorista-veiculo")
 def rel_entregas_motorista_veiculo():
-    return jsonify(query_sql("SELECT * FROM vw_entregas_por_motorista_veiculo"))
+    try:
+        return jsonify(query_sql("SELECT * FROM vw_entregas_por_motorista_veiculo"))
+    except Exception as e:
+        return jsonify({"ok": False, "detalhe": erro_banco(e)}), 500
 
 # ─────────────────────────────────────────────────
 if __name__ == "__main__":

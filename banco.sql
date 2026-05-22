@@ -184,7 +184,8 @@ CREATE TABLE PRODUTO (
     ativo          BIT           NOT NULL DEFAULT 1,
     CONSTRAINT FK_PROD_CAT FOREIGN KEY (fk_categoria) REFERENCES CATEGORIA(id_categoria),
     CONSTRAINT CK_PRODUTO_PRECO_CUSTO CHECK (preco_custo > 0),
-    CONSTRAINT CK_PRODUTO_PRECO_VENDA CHECK (preco_venda > preco_custo)
+    CONSTRAINT CK_PRODUTO_PRECO_VENDA CHECK (preco_venda > preco_custo),
+    CONSTRAINT CK_PRODUTO_PESO        CHECK (peso_kg IS NULL OR peso_kg > 0)
 );
 GO
 
@@ -314,8 +315,10 @@ CREATE TABLE VEICULO (
     ano           SMALLINT     NULL,
     capacidade_kg DECIMAL(8,2) NULL,
     ativo         BIT          NOT NULL DEFAULT 1,
-    CONSTRAINT FK_VEI_FILIAL FOREIGN KEY (fk_filial) REFERENCES FILIAL(id_filial),
-    CONSTRAINT CK_VEICULO_CAPACIDADE CHECK (capacidade_kg IS NULL OR capacidade_kg > 0)
+    CONSTRAINT FK_VEI_FILIAL    FOREIGN KEY (fk_filial) REFERENCES FILIAL(id_filial),
+    CONSTRAINT CK_VEICULO_CAPACIDADE CHECK (capacidade_kg IS NULL OR capacidade_kg > 0),
+    CONSTRAINT CK_VEICULO_PLACA      CHECK (LEN(placa) >= 7),
+    CONSTRAINT CK_VEICULO_ANO        CHECK (ano IS NULL OR (ano >= 1900 AND ano <= 2100))
 );
 GO
 
