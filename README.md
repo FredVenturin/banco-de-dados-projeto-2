@@ -9,7 +9,7 @@ O sistema simula a gestão de uma distribuidora de grande porte, com controle de
 ## Tecnologias utilizadas
 
 - **SQL Server 2019/2021**
-- **Python 3**
+- **Python 3.10+**
 - **Flask**
 - **pyodbc**
 - **HTML, CSS e JavaScript puro**
@@ -30,11 +30,117 @@ distribuimax_final/
 
 ---
 
+## Pré-requisitos
+
+Antes de começar, certifique-se de que os seguintes programas estão instalados na máquina:
+
+- **SQL Server 2019 ou 2021** (Express ou Developer) — [download](https://www.microsoft.com/pt-br/sql-server/sql-server-downloads)
+- **SQL Server Management Studio (SSMS)** — [download](https://aka.ms/ssmsfullsetup)
+- **Python 3.10 ou superior** — [download](https://www.python.org/downloads/)
+- **ODBC Driver 17 for SQL Server** — [download](https://learn.microsoft.com/pt-br/sql/connect/odbc/download-odbc-driver-for-sql-server)
+
+> **Atenção:** Durante a instalação do Python, marque a opção **"Add Python to PATH"**.
+
+---
+
+## Instalação passo a passo
+
+### 1. Criar o banco de dados
+
+1. Abra o **SQL Server Management Studio (SSMS)**
+2. Conecte ao servidor (normalmente `localhost\SQLEXPRESS` ou `localhost`)
+3. Clique em **Arquivo → Abrir → Arquivo...** e selecione o arquivo `banco.sql`
+4. Clique em **Executar (F5)**
+5. Aguarde a mensagem `Banco DistribuiMax criado com sucesso!!!!`
+
+> Se aparecer erro dizendo que o banco já existe e está em uso, feche todas as outras janelas do SSMS conectadas ao banco e execute novamente.
+
+---
+
+### 2. Instalar as dependências Python
+
+Abra o terminal (Prompt de Comando ou PowerShell) na pasta do projeto e execute:
+
+```bash
+pip install flask pyodbc
+```
+
+Se preferir usar o arquivo de dependências:
+
+```bash
+pip install -r requirements.txt
+```
+
+O `requirements.txt` deve conter:
+
+```
+flask
+pyodbc
+```
+
+---
+
+### 3. Configurar a conexão com o banco
+
+Abra o arquivo `app.py` e localize o bloco de configuração no início do arquivo:
+
+```python
+DB_SERVER   = "localhost"
+DB_NAME     = "DistribuiMax"
+DB_USER     = "sa"
+DB_PASSWORD = "Distribuimax@2026"
+DB_DRIVER   = "ODBC Driver 17 for SQL Server"
+```
+
+Ajuste conforme o seu ambiente:
+
+| Campo | O que colocar |
+|---|---|
+| `DB_SERVER` | Nome do servidor SQL. Use `localhost` ou `localhost\SQLEXPRESS` conforme sua instalação |
+| `DB_NAME` | Deixe `DistribuiMax` |
+| `DB_USER` | Usuário do SQL Server, normalmente `sa` |
+| `DB_PASSWORD` | Senha do usuário `sa` definida na instalação |
+| `DB_DRIVER` | Deixe `ODBC Driver 17 for SQL Server` se instalou o driver correto |
+
+> **Como descobrir o nome do servidor:** No SSMS, o nome aparece na tela de conexão em "Nome do servidor". Copie exatamente esse valor.
+
+---
+
+### 4. Verificar se o ODBC Driver está instalado
+
+No Windows, abra o **Painel de Controle → Ferramentas Administrativas → Fontes de Dados ODBC (64 bits)**. Na aba **Drivers**, procure por `ODBC Driver 17 for SQL Server`. Se não aparecer, instale pelo link na seção de pré-requisitos.
+
+---
+
+### 5. Rodar a aplicação
+
+No terminal, dentro da pasta do projeto, execute:
+
+```bash
+python app.py
+```
+
+A saída esperada é:
+
+```
+* Running on http://0.0.0.0:5000
+* Debug mode: on
+```
+
+Depois acesse no navegador:
+
+```
+http://localhost:5000
+```
+
+O indicador no canto superior direito da tela mostrará **✅ Banco conectado** se tudo estiver funcionando.
+
+---
+
+
 ## Banco de dados
 
-O arquivo `banco.sql` cria o banco `DistribuiMax` do zero.
-
-Ele contém:
+O arquivo `banco.sql` cria o banco `DistribuiMax` do zero. Ele contém:
 
 - **14 tabelas**
 - **27 stored procedures**
@@ -44,20 +150,7 @@ Ele contém:
 
 ### Tabelas principais
 
-- `FILIAL`
-- `FUNCIONARIO`
-- `CATEGORIA`
-- `PRODUTO`
-- `EMPRESA`
-- `FORNECE`
-- `PEDIDO`
-- `ITEM_PEDIDO`
-- `NOTA_FISCAL`
-- `ITEM_NOTA`
-- `VEICULO`
-- `ENTREGA`
-- `ESTOQUE`
-- `MOVIMENTACAO`
+`FILIAL`, `FUNCIONARIO`, `CATEGORIA`, `PRODUTO`, `EMPRESA`, `FORNECE`, `PEDIDO`, `ITEM_PEDIDO`, `NOTA_FISCAL`, `ITEM_NOTA`, `VEICULO`, `ENTREGA`, `ESTOQUE`, `MOVIMENTACAO`
 
 ### Triggers
 
@@ -72,62 +165,6 @@ Ele contém:
 - `vw_produtos_por_fornecedor`
 - `vw_faturamento_por_cliente`
 - `vw_entregas_por_motorista_veiculo`
-
----
-
-## Como executar
-
-### 1. Criar o banco
-
-Abra o arquivo `banco.sql` no SQL Server Management Studio ou Azure Data Studio e execute o script completo.
-
-Caso o banco já exista e esteja em uso, feche outras conexões com o banco antes de executar novamente.
-
----
-
-### 2. Instalar dependências
-
-No terminal, dentro da pasta do projeto, execute:
-
-```bash
-pip install -r requirements.txt
-```
-
-Se não houver `requirements.txt`, instale manualmente:
-
-```bash
-pip install flask pyodbc
-```
-
----
-
-### 3. Configurar a conexão
-
-No arquivo `app.py`, ajuste os dados de conexão conforme seu SQL Server:
-
-```python
-DB_SERVER   = "localhost\\SQLEXPRESS"
-DB_NAME     = "DistribuiMax"
-DB_USER     = "sa"
-DB_PASSWORD = "sua_senha"
-DB_DRIVER   = "ODBC Driver 17 for SQL Server"
-```
-
----
-
-### 4. Rodar a aplicação
-
-Execute:
-
-```bash
-python app.py
-```
-
-Depois acesse no navegador:
-
-```text
-http://localhost:5000
-```
 
 ---
 
@@ -148,116 +185,3 @@ http://localhost:5000
 | Categorias | Listar categorias para apoio ao cadastro de produtos |
 
 ---
-
-## Rotas principais da API
-
-### Sistema
-
-| Método | Rota | Descrição |
-|---|---|---|
-| GET | `/api/health` | Verifica conexão com o banco |
-
-### Empresas
-
-| Método | Rota | Descrição |
-|---|---|---|
-| GET | `/api/empresas` | Lista empresas |
-| GET | `/api/empresas/<id>` | Busca empresa por ID |
-| POST | `/api/empresas` | Cadastra empresa |
-| PUT | `/api/empresas/<id>` | Atualiza empresa |
-| DELETE | `/api/empresas/<id>` | Desativa empresa |
-
-### Produtos
-
-| Método | Rota | Descrição |
-|---|---|---|
-| GET | `/api/produtos` | Lista produtos |
-| GET | `/api/produtos/<id>` | Busca produto por ID |
-| POST | `/api/produtos` | Cadastra produto |
-| PUT | `/api/produtos/<id>` | Atualiza produto |
-| DELETE | `/api/produtos/<id>` | Desativa produto |
-
-### Pedidos
-
-| Método | Rota | Descrição |
-|---|---|---|
-| GET | `/api/pedidos` | Lista pedidos |
-| GET | `/api/pedidos/<id>` | Busca pedido por ID |
-| POST | `/api/pedidos` | Cadastra pedido |
-| PUT | `/api/pedidos/<id>` | Atualiza pedido |
-| DELETE | `/api/pedidos/<id>` | Cancela pedido |
-
-### Notas fiscais
-
-| Método | Rota | Descrição |
-|---|---|---|
-| GET | `/api/notas` | Lista notas fiscais |
-| GET | `/api/notas/<id>/itens` | Lista itens da nota |
-| POST | `/api/notas` | Emite nota fiscal |
-| DELETE | `/api/notas/<id>` | Exclui nota fiscal |
-
-### Funcionários, filiais, veículos e entregas
-
-| Método | Rota | Descrição |
-|---|---|---|
-| GET/POST | `/api/funcionarios` | Lista ou cadastra funcionários |
-| PUT/DELETE | `/api/funcionarios/<id>` | Atualiza ou desativa funcionário |
-| GET/POST | `/api/filiais` | Lista ou cadastra filiais |
-| PUT/DELETE | `/api/filiais/<id>` | Atualiza ou desativa filial |
-| GET/POST | `/api/veiculos` | Lista ou cadastra veículos |
-| PUT/DELETE | `/api/veiculos/<id>` | Atualiza ou desativa veículo |
-| GET/POST | `/api/entregas` | Lista ou cadastra entregas |
-| PUT/DELETE | `/api/entregas/<id>` | Atualiza ou cancela entrega |
-
-### Apoio e relatórios
-
-| Método | Rota | Descrição |
-|---|---|---|
-| GET | `/api/categorias` | Lista categorias |
-| GET | `/api/estoque` | Lista estoque |
-| GET | `/api/relatorios/pedidos-clientes` | Relatório de pedidos por cliente |
-| GET | `/api/relatorios/estoque-filial` | Relatório de estoque por filial |
-| GET | `/api/relatorios/produtos-fornecedor` | Relatório de produtos por fornecedor |
-| GET | `/api/relatorios/faturamento-cliente` | Relatório de faturamento por cliente |
-| GET | `/api/relatorios/entregas-motorista-veiculo` | Relatório de entregas por motorista e veículo |
-
----
-
-## Decisões de modelagem
-
-### Empresa unificada
-
-A tabela `EMPRESA` substitui a separação entre cliente e fornecedor. Uma empresa pode ser cliente, fornecedora ou ambas, usando os campos `is_cliente` e `is_fornecedor`. O banco garante pelo menos um dos dois via constraint `CK_EMPRESA_PAPEL`.
-
-### Nota fiscal parcial
-
-A relação entre `PEDIDO` e `NOTA_FISCAL` é N:1. Assim, um pedido pode gerar mais de uma nota fiscal, permitindo recebimento parcial ou produtos faltantes.
-
-### Endereço direto nas entidades
-
-Os dados de endereço foram mantidos diretamente em `EMPRESA` e `FILIAL`, evitando uma tabela separada para uma relação 1:1.
-
-### Exclusões lógicas
-
-Em vários módulos, a exclusão na interface representa desativação ou cancelamento, preservando o histórico do sistema. Os campos `ativo` e `status` controlam esse comportamento, com valores DEFAULT definidos no próprio banco.
-
-### Separação entre ITEM_PEDIDO e ITEM_NOTA
-
-As tabelas `ITEM_PEDIDO` e `ITEM_NOTA` são separadas porque o que foi pedido pode ser diferente do que foi faturado — especialmente com a lógica de nota parcial. Ambas possuem o campo `desconto_pct` para registrar o desconto aplicado em cada item, e o valor total é recalculado automaticamente pelas triggers correspondentes.
-
-### Tabela FORNECE com atributo próprio
-
-A relação entre empresa e produto não é simples — ela carrega um dado próprio, que é o preço negociado. Por isso existe uma tabela associativa `FORNECE` em vez de uma chave estrangeira direta, permitindo registrar o preço combinado entre fornecedor e produto.
-
-### Nomenclatura de colunas
-
-As colunas seguem a convenção `id_` para chaves primárias e `fk_` para chaves estrangeiras, tornando explícita a natureza de cada campo diretamente pelo nome.
-
----
-
-## Observações
-
-- O projeto foi desenvolvido para execução local.
-- O banco deve estar criado antes de iniciar o Flask.
-- O indicador no topo da tela mostra se a conexão com o banco está funcionando.
-- Os dados inseridos no SQL são fictícios e servem apenas para demonstração.
